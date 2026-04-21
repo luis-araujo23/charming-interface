@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { DiaryEntryCard } from "@/components/diary/DiaryEntryCard";
+import { DiaryBook } from "@/components/diary/DiaryBook";
 import { mockEntries } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/_app/diary")({
@@ -22,11 +22,7 @@ function DiaryPage() {
         }
       />
 
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {mockEntries.map((entry, i) => (
-          <DiaryEntryCard key={entry.id} entry={entry} index={i} />
-        ))}
-      </div>
+      <DiaryBook entries={mockEntries} />
     </div>
   );
 }
