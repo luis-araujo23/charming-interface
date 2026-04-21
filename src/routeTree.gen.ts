@@ -9,38 +9,181 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RegisterRouteImport } from './routes/register'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AppTaggedRouteImport } from './routes/_app.tagged'
+import { Route as AppStreaksRouteImport } from './routes/_app.streaks'
+import { Route as AppSearchRouteImport } from './routes/_app.search'
+import { Route as AppMemoriesRouteImport } from './routes/_app.memories'
+import { Route as AppFriendsRouteImport } from './routes/_app.friends'
+import { Route as AppDiaryRouteImport } from './routes/_app.diary'
+import { Route as AppCalendarRouteImport } from './routes/_app.calendar'
 
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AppTaggedRoute = AppTaggedRouteImport.update({
+  id: '/tagged',
+  path: '/tagged',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppStreaksRoute = AppStreaksRouteImport.update({
+  id: '/streaks',
+  path: '/streaks',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSearchRoute = AppSearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMemoriesRoute = AppMemoriesRouteImport.update({
+  id: '/memories',
+  path: '/memories',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppFriendsRoute = AppFriendsRouteImport.update({
+  id: '/friends',
+  path: '/friends',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDiaryRoute = AppDiaryRouteImport.update({
+  id: '/diary',
+  path: '/diary',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCalendarRoute = AppCalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
+  getParentRoute: () => AppRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/calendar': typeof AppCalendarRoute
+  '/diary': typeof AppDiaryRoute
+  '/friends': typeof AppFriendsRoute
+  '/memories': typeof AppMemoriesRoute
+  '/search': typeof AppSearchRoute
+  '/streaks': typeof AppStreaksRoute
+  '/tagged': typeof AppTaggedRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/calendar': typeof AppCalendarRoute
+  '/diary': typeof AppDiaryRoute
+  '/friends': typeof AppFriendsRoute
+  '/memories': typeof AppMemoriesRoute
+  '/search': typeof AppSearchRoute
+  '/streaks': typeof AppStreaksRoute
+  '/tagged': typeof AppTaggedRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/_app': typeof AppRouteWithChildren
+  '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
+  '/_app/calendar': typeof AppCalendarRoute
+  '/_app/diary': typeof AppDiaryRoute
+  '/_app/friends': typeof AppFriendsRoute
+  '/_app/memories': typeof AppMemoriesRoute
+  '/_app/search': typeof AppSearchRoute
+  '/_app/streaks': typeof AppStreaksRoute
+  '/_app/tagged': typeof AppTaggedRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/register'
+    | '/calendar'
+    | '/diary'
+    | '/friends'
+    | '/memories'
+    | '/search'
+    | '/streaks'
+    | '/tagged'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/login'
+    | '/register'
+    | '/calendar'
+    | '/diary'
+    | '/friends'
+    | '/memories'
+    | '/search'
+    | '/streaks'
+    | '/tagged'
+  id:
+    | '__root__'
+    | '/'
+    | '/_app'
+    | '/login'
+    | '/register'
+    | '/_app/calendar'
+    | '/_app/diary'
+    | '/_app/friends'
+    | '/_app/memories'
+    | '/_app/search'
+    | '/_app/streaks'
+    | '/_app/tagged'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppRoute: typeof AppRouteWithChildren
+  LoginRoute: typeof LoginRoute
+  RegisterRoute: typeof RegisterRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +191,85 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/tagged': {
+      id: '/_app/tagged'
+      path: '/tagged'
+      fullPath: '/tagged'
+      preLoaderRoute: typeof AppTaggedRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/streaks': {
+      id: '/_app/streaks'
+      path: '/streaks'
+      fullPath: '/streaks'
+      preLoaderRoute: typeof AppStreaksRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/search': {
+      id: '/_app/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof AppSearchRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/memories': {
+      id: '/_app/memories'
+      path: '/memories'
+      fullPath: '/memories'
+      preLoaderRoute: typeof AppMemoriesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/friends': {
+      id: '/_app/friends'
+      path: '/friends'
+      fullPath: '/friends'
+      preLoaderRoute: typeof AppFriendsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/diary': {
+      id: '/_app/diary'
+      path: '/diary'
+      fullPath: '/diary'
+      preLoaderRoute: typeof AppDiaryRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/calendar': {
+      id: '/_app/calendar'
+      path: '/calendar'
+      fullPath: '/calendar'
+      preLoaderRoute: typeof AppCalendarRouteImport
+      parentRoute: typeof AppRoute
+    }
   }
 }
 
+interface AppRouteChildren {
+  AppCalendarRoute: typeof AppCalendarRoute
+  AppDiaryRoute: typeof AppDiaryRoute
+  AppFriendsRoute: typeof AppFriendsRoute
+  AppMemoriesRoute: typeof AppMemoriesRoute
+  AppSearchRoute: typeof AppSearchRoute
+  AppStreaksRoute: typeof AppStreaksRoute
+  AppTaggedRoute: typeof AppTaggedRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppCalendarRoute: AppCalendarRoute,
+  AppDiaryRoute: AppDiaryRoute,
+  AppFriendsRoute: AppFriendsRoute,
+  AppMemoriesRoute: AppMemoriesRoute,
+  AppSearchRoute: AppSearchRoute,
+  AppStreaksRoute: AppStreaksRoute,
+  AppTaggedRoute: AppTaggedRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppRoute: AppRouteWithChildren,
+  LoginRoute: LoginRoute,
+  RegisterRoute: RegisterRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
