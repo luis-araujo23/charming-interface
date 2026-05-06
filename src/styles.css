@@ -187,4 +187,36 @@
     background-repeat: no-repeat;
     background-size: 100% 100%;
   }
+
+  .photo-strip-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+
+  .photo-strip-scroll:hover {
+    scrollbar-color: color-mix(in oklab, var(--olive-deep) 24%, transparent) transparent;
+  }
+
+  .photo-strip-scroll::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .photo-strip-scroll::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 999px;
+  }
+
+  .photo-strip-scroll::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 999px;
+    border: none;
+  }
+
+  .photo-strip-scroll:hover::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--olive-deep) 26%, transparent);
+  }
+
+  .photo-strip-scroll::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in oklab, var(--olive-deep) 34%, transparent);
+  }
 }

@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/brand/Logo";
 import { AuthCard } from "@/components/auth/AuthCard";
@@ -10,10 +11,58 @@ export const Route = createFileRoute("/register")({
 });
 
 function RegisterPage() {
+  const navigate = useNavigate();
+
+  const [form, setForm] = useState({
+    username: "",
+    email: "",
+    password: "",
+  });
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setError(null);
+
+    if (!form.username.trim() || !form.email.trim() || !form.password.trim()) {
+      setError("Completa usuario, correo y contraseña.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: form.username.trim(),
+          email: form.email.trim(),
+          password: form.password,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data?.message ?? "No se pudo crear la cuenta");
+      }
+
+      await navigate({ to: "/diary" });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error inesperado");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-6 py-10">
       <div className="mb-8">
-        <Link to="/"><Logo size="md" /></Link>
+        <Link to="/">
+          <Logo size="md" />
+        </Link>
       </div>
 
       <AuthCard
@@ -28,13 +77,44 @@ function RegisterPage() {
           </>
         }
       >
-        <form className="space-y-5" onSubmit={(e) => e.preventDefault()}>
-          <AuthField id="username" label="Usuario" placeholder="tunombre" icon={<User className="h-4 w-4" />} />
-          <AuthField id="email" label="Correo" type="email" placeholder="tu@correo.com" icon={<Mail className="h-4 w-4" />} />
-          <AuthField id="password" label="Contraseña" type="password" placeholder="mínimo 8 caracteres" icon={<Lock className="h-4 w-4" />} />
+        <form className="space-y-5" onSubmit={onSubmit}>
+          <AuthField
+            id="username"
+            label="Usuario"
+            placeholder="tunombre"
+            icon={<User className="h-4 w-4" />}
+            value={form.username}
+            onChange={(e) => setForm((prev) => ({ ...prev, username: e.target.value }))}
+          />
 
-          <Button asChild type="submit" className="h-11 w-full rounded-xl bg-primary text-base font-medium shadow-[0_10px_30px_-10px_var(--olive)]">
-            <Link to="/diary">Crear cuenta</Link>
+          <AuthField
+            id="email"
+            label="Correo"
+            type="email"
+            placeholder="tu@correo.com"
+            icon={<Mail className="h-4 w-4" />}
+            value={form.email}
+            onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
+          />
+
+          <AuthField
+            id="password"
+            label="Contraseña"
+            type="password"
+            placeholder="mínimo 8 caracteres"
+            icon={<Lock className="h-4 w-4" />}
+            value={form.password}
+            onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
+          />
+
+          {error ? <p className="text-sm text-red-500">{error}</p> : null}
+
+          <Button
+            type="submit"
+            disabled={loading}
+            className="h-11 w-full rounded-xl bg-primary text-base font-medium shadow-[0_10px_30px_-10px_var(--olive)]"
+          >
+            {loading ? "Creando cuenta..." : "Crear cuenta"}
           </Button>
 
           <p className="text-center text-xs text-muted-foreground">

@@ -1,8 +1,8 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ReactNode } from "react";
+import { InputHTMLAttributes, ReactNode } from "react";
 
-interface AuthFieldProps {
+interface AuthFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "id" | "type"> {
   id: string;
   label: string;
   type?: string;
@@ -10,7 +10,7 @@ interface AuthFieldProps {
   icon?: ReactNode;
 }
 
-export function AuthField({ id, label, type = "text", placeholder, icon }: AuthFieldProps) {
+export function AuthField({ id, label, type = "text", placeholder, icon, ...inputProps }: AuthFieldProps) {
   return (
     <div className="space-y-1.5">
       <Label htmlFor={id} className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -26,6 +26,7 @@ export function AuthField({ id, label, type = "text", placeholder, icon }: AuthF
           id={id}
           type={type}
           placeholder={placeholder}
+          {...inputProps}
           className={`h-11 rounded-xl border-border bg-cream/60 text-base ${icon ? "pl-10" : ""}`}
         />
       </div>

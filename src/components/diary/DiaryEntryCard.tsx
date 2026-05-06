@@ -6,9 +6,20 @@ export interface DiaryEntryPreview {
   title: string;
   excerpt: string;
   date: string;
-  song?: { title: string; artist: string };
+  song?: { title: string; artist: string; url?: string };
   photoCount?: number;
+  photoUrls?: string[];
   tagCount?: number;
+  taggedUsers?: string[];
+  taggedComments?: Array<{
+    id: number;
+    entryTagId: number;
+    authorId: number;
+    authorUsername: string;
+    taggedUserUsername: string;
+    message: string;
+    createdAt: string;
+  }>;
 }
 
 export function DiaryEntryCard({ entry, index = 0 }: { entry: DiaryEntryPreview; index?: number }) {
