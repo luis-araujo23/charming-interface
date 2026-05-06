@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { parseCookies, SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth-session";
-import { getDbPool } from "@/lib/db";
 import { uploadDiaryPhotoToSupabase, validateDiaryPhotoFile } from "@/lib/photo-storage";
+import { getSupabaseAdmin, isSupabaseEnvError } from "@/lib/supabase";
 
 function getSessionUserId(request: Request) {
   const cookies = parseCookies(request.headers.get("cookie"));
@@ -74,18 +74,20 @@ export const Route = createFileRoute("/api/diary/photos")({
         }
 
         try {
-          const db = getDbPool();
-          const ownerCheck = await db.query<{ id: number }>(
-            `
-              SELECT id
-              FROM public.diary_entries
-              WHERE id = $1 AND user_id = $2
-              LIMIT 1
-            `,
-            [entryId, userId],
-          );
+          const supabase = getSupabaseAdmin();
+          const { data: ownerEntry, error: ownerError } = await supabase
+            .from("diary_entries")
+            .select("id")
+            .eq("id", entryId)
+            .eq("user_id", userId)
+            .limit(1)
+            .maybeSingle();
 
-          if (ownerCheck.rowCount === 0) {
+          if (ownerError) {
+            throw ownerError;
+          }
+
+          if (!ownerEntry) {
             return Response.json({ message: "No tienes permisos sobre esta entrada" }, { status: 403 });
           }
 
@@ -95,29 +97,28 @@ export const Route = createFileRoute("/api/diary/photos")({
             entryId,
           });
 
-          const insertResult = await db.query<{
-            id: number;
-            entry_id: number;
-            photo_url: string;
-            created_at: string;
-          }>(
-            `
-              INSERT INTO public.entry_photos (entry_id, photo_url)
-              VALUES ($1, $2)
-              RETURNING id, entry_id, photo_url, created_at
-            `,
-            [entryId, photoUrl],
-          );
+          const { data: insertedPhoto, error: insertError } = await supabase
+            .from("entry_photos")
+            .insert({
+              entry_id: entryId,
+              photo_url: photoUrl,
+            })
+            .select("id, entry_id, photo_url, created_at")
+            .single();
+
+          if (insertError) {
+            throw insertError;
+          }
 
           return Response.json(
             {
               message: "Foto adjuntada correctamente",
-              photo: insertResult.rows[0],
+              photo: insertedPhoto,
             },
             { status: 201 },
           );
         } catch (error) {
-          if (error instanceof Error && error.message.includes("not configured")) {
+          if (isSupabaseEnvError(error) || (error instanceof Error && error.message.includes("not configured"))) {
             return Response.json(
               {
                 message: "Falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY.",

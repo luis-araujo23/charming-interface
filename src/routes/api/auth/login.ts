@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { compare } from "bcryptjs";
 import { buildSessionCookie, createSessionToken } from "@/lib/auth-session";
-import { getDbPool } from "@/lib/db";
+import { getSupabaseAdmin, isSupabaseEnvError } from "@/lib/supabase";
 
 type LoginPayload = {
   email?: unknown;
@@ -28,23 +28,17 @@ export const Route = createFileRoute("/api/auth/login")({
         }
 
         try {
-          const db = getDbPool();
-          const result = await db.query<{
-            id: string | number;
-            username: string;
-            email: string;
-            password_hash: string;
-          }>(
-            `
-              SELECT id, username, email, password_hash
-              FROM public.users
-              WHERE email = $1
-              LIMIT 1
-            `,
-            [email],
-          );
+          const supabase = getSupabaseAdmin();
+          const { data: user, error: userError } = await supabase
+            .from("users")
+            .select("id, username, email, password_hash")
+            .ilike("email", email)
+            .limit(1)
+            .maybeSingle();
 
-          const user = result.rows[0];
+          if (userError) {
+            throw userError;
+          }
 
           if (!user) {
             return Response.json({ message: "Credenciales inválidas." }, { status: 401 });
@@ -80,9 +74,9 @@ export const Route = createFileRoute("/api/auth/login")({
             },
           );
         } catch (error) {
-          if (error instanceof Error && error.message.includes("DATABASE_URL is not configured")) {
+          if (isSupabaseEnvError(error)) {
             return Response.json(
-              { message: "Falta configurar DATABASE_URL en el archivo .env del proyecto." },
+              { message: "Falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en el archivo .env." },
               { status: 500 },
             );
           }

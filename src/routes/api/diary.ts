@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { parseCookies, SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth-session";
-import { getDbPool } from "@/lib/db";
+import { getSupabaseAdmin, isSupabaseEnvError } from "@/lib/supabase";
 
 type CreateDiaryPayload = {
   title?: unknown;
@@ -66,6 +66,21 @@ function parseTaggedUsernames(value: unknown) {
   return [] as string[];
 }
 
+function getWeekBoundsForDate(dateString: string) {
+  const date = new Date(`${dateString}T00:00:00Z`);
+  const day = date.getUTCDay();
+  const offset = (day + 6) % 7;
+  const weekStart = new Date(date);
+  weekStart.setUTCDate(date.getUTCDate() - offset);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setUTCDate(weekStart.getUTCDate() + 6);
+
+  return {
+    weekStartDate: weekStart.toISOString().slice(0, 10),
+    weekEndDate: weekEnd.toISOString().slice(0, 10),
+  };
+}
+
 export const Route = createFileRoute("/api/diary")({
   server: {
     handlers: {
@@ -84,64 +99,46 @@ export const Route = createFileRoute("/api/diary")({
         }
 
         try {
-          const db = getDbPool();
-          const baseQuery = `
-              SELECT
-                de.id,
-                de.title,
-                de.content,
-                de.entry_date,
-                de.song_title,
-                de.song_artist,
-                de.song_url,
-                (
-                  SELECT COUNT(*)::int
-                  FROM public.entry_photos ep
-                  WHERE ep.entry_id = de.id
-                ) AS photo_count,
-                (
-                  SELECT COUNT(*)::int
-                  FROM public.entry_tags et
-                  WHERE et.entry_id = de.id
-                ) AS tag_count,
-                COALESCE(
-                  (
-                    SELECT array_agg(ep.photo_url ORDER BY ep.created_at DESC)
-                    FROM public.entry_photos ep
-                    WHERE ep.entry_id = de.id
-                  ),
-                  ARRAY[]::text[]
-                ) AS photo_urls,
-                de.created_at
-              FROM public.diary_entries de
-              WHERE de.user_id = $1
-            `;
+          const supabase = getSupabaseAdmin();
+          let entriesQuery = supabase
+            .from("diary_entries")
+            .select("id, title, content, entry_date, song_title, song_artist, song_url, created_at")
+            .eq("user_id", userId)
+            .order("entry_date", { ascending: false })
+            .order("created_at", { ascending: false });
 
-          const result = await db.query<{
-            id: string | number;
-            title: string | null;
-            content: string;
-            entry_date: string;
-            song_title: string | null;
-            song_artist: string | null;
-            song_url: string | null;
-            photo_count: number;
-            tag_count: number;
-            photo_urls: string[];
-            created_at: string;
-          }>(
-            dateFilter
-              ? `${baseQuery}
-                 AND de.entry_date = $2::date
-                 ORDER BY entry_date DESC, created_at DESC`
-              : `${baseQuery}
-                 ORDER BY entry_date DESC, created_at DESC`,
-            dateFilter ? [userId, dateFilter] : [userId],
-          );
+          if (dateFilter) {
+            entriesQuery = entriesQuery.eq("entry_date", dateFilter);
+          }
 
-          const entryIds = result.rows
-            .map((row) => Number(row.id))
-            .filter((id) => Number.isInteger(id) && id > 0);
+          const { data: entries, error: entriesError } = await entriesQuery;
+
+          if (entriesError) {
+            throw entriesError;
+          }
+
+          const entryIds = (entries ?? []).map((row) => Number(row.id));
+
+          let photoUrlsByEntryId = new Map<number, string[]>();
+          if (entryIds.length > 0) {
+            const { data: photos, error: photosError } = await supabase
+              .from("entry_photos")
+              .select("entry_id, photo_url, created_at")
+              .in("entry_id", entryIds)
+              .order("created_at", { ascending: false });
+
+            if (photosError) {
+              throw photosError;
+            }
+
+            photoUrlsByEntryId = (photos ?? []).reduce((acc, row) => {
+              const entryId = Number(row.entry_id);
+              const current = acc.get(entryId) ?? [];
+              current.push(row.photo_url);
+              acc.set(entryId, current);
+              return acc;
+            }, new Map<number, string[]>());
+          }
 
           const taggedUsersByEntryId = new Map<number, string[]>();
           const tagCommentsByEntryId = new Map<
@@ -158,77 +155,81 @@ export const Route = createFileRoute("/api/diary")({
           >();
 
           if (entryIds.length > 0) {
-            const tagsResult = await db.query<{
-              entry_id: string | number;
-              entry_tag_id: string | number;
-              tagged_user_username: string;
-            }>(
-              `
-                SELECT
-                  et.entry_id,
-                  et.id AS entry_tag_id,
-                  tagged_user.username AS tagged_user_username
-                FROM public.entry_tags et
-                INNER JOIN public.users tagged_user ON tagged_user.id = et.tagged_user_id
-                WHERE et.entry_id = ANY($1::int[])
-                ORDER BY et.created_at ASC
-              `,
-              [entryIds],
-            );
+            const { data: tags, error: tagsError } = await supabase
+              .from("entry_tags")
+              .select("id, entry_id, tagged_user_id, created_at")
+              .in("entry_id", entryIds)
+              .order("created_at", { ascending: true });
 
-            const entryTagIds: number[] = [];
+            if (tagsError) {
+              throw tagsError;
+            }
 
-            for (const row of tagsResult.rows) {
-              const entryId = Number(row.entry_id);
-              const entryTagId = Number(row.entry_tag_id);
-              const taggedUsers = taggedUsersByEntryId.get(entryId) ?? [];
-              taggedUsers.push(row.tagged_user_username);
-              taggedUsersByEntryId.set(entryId, taggedUsers);
-              entryTagIds.push(entryTagId);
+            const entryTagIds = (tags ?? []).map((row) => Number(row.id));
+            const taggedUserIds = [...new Set((tags ?? []).map((row) => Number(row.tagged_user_id)))];
+
+            const { data: taggedUsers, error: taggedUsersError } = taggedUserIds.length > 0
+              ? await supabase.from("users").select("id, username").in("id", taggedUserIds)
+              : { data: [], error: null };
+
+            if (taggedUsersError) {
+              throw taggedUsersError;
+            }
+
+            const taggedUsernamesById = new Map((taggedUsers ?? []).map((row) => [Number(row.id), row.username]));
+            const entryIdByEntryTagId = new Map<number, number>();
+            const taggedUserByEntryTagId = new Map<number, string>();
+
+            for (const tag of tags ?? []) {
+              const entryId = Number(tag.entry_id);
+              const entryTagId = Number(tag.id);
+              const taggedUsername = taggedUsernamesById.get(Number(tag.tagged_user_id)) ?? "";
+              const currentTaggedUsers = taggedUsersByEntryId.get(entryId) ?? [];
+              currentTaggedUsers.push(taggedUsername);
+              taggedUsersByEntryId.set(entryId, currentTaggedUsers);
+              entryIdByEntryTagId.set(entryTagId, entryId);
+              taggedUserByEntryTagId.set(entryTagId, taggedUsername);
             }
 
             if (entryTagIds.length > 0) {
-              const commentsResult = await db.query<{
-                id: string | number;
-                entry_id: string | number;
-                entry_tag_id: string | number;
-                author_id: string | number;
-                author_username: string;
-                tagged_user_username: string;
-                message: string;
-                created_at: string;
-              }>(
-                `
-                  SELECT
-                    tem.id,
-                    et.entry_id,
-                    et.id AS entry_tag_id,
-                    tem.author_id,
-                    author.username AS author_username,
-                    tagged_user.username AS tagged_user_username,
-                    tem.message,
-                    tem.created_at
-                  FROM public.tagged_entry_messages tem
-                  INNER JOIN public.entry_tags et ON et.id = tem.entry_tag_id
-                  INNER JOIN public.users author ON author.id = tem.author_id
-                  INNER JOIN public.users tagged_user ON tagged_user.id = et.tagged_user_id
-                  WHERE tem.entry_tag_id = ANY($1::int[])
-                  ORDER BY tem.created_at ASC
-                `,
-                [entryTagIds],
-              );
+              const { data: comments, error: commentsError } = await supabase
+                .from("tagged_entry_messages")
+                .select("id, entry_tag_id, author_id, message, created_at")
+                .in("entry_tag_id", entryTagIds)
+                .order("created_at", { ascending: true });
 
-              for (const row of commentsResult.rows) {
-                const entryId = Number(row.entry_id);
+              if (commentsError) {
+                throw commentsError;
+              }
+
+              const authorIds = [...new Set((comments ?? []).map((row) => Number(row.author_id)))];
+              const { data: authors, error: authorsError } = authorIds.length > 0
+                ? await supabase.from("users").select("id, username").in("id", authorIds)
+                : { data: [], error: null };
+
+              if (authorsError) {
+                throw authorsError;
+              }
+
+              const authorUsernamesById = new Map((authors ?? []).map((row) => [Number(row.id), row.username]));
+
+              for (const comment of comments ?? []) {
+                const entryTagId = Number(comment.entry_tag_id);
+                const entryId = entryIdByEntryTagId.get(entryTagId);
+
+                if (!entryId) {
+                  continue;
+                }
+
                 const currentComments = tagCommentsByEntryId.get(entryId) ?? [];
                 currentComments.push({
-                  id: Number(row.id),
-                  entryTagId: Number(row.entry_tag_id),
-                  authorId: Number(row.author_id),
-                  authorUsername: row.author_username,
-                  taggedUserUsername: row.tagged_user_username,
-                  message: row.message,
-                  createdAt: row.created_at,
+                  id: Number(comment.id),
+                  entryTagId,
+                  authorId: Number(comment.author_id),
+                  authorUsername: authorUsernamesById.get(Number(comment.author_id)) ?? "",
+                  taggedUserUsername: taggedUserByEntryTagId.get(entryTagId) ?? "",
+                  message: comment.message,
+                  createdAt: comment.created_at,
                 });
                 tagCommentsByEntryId.set(entryId, currentComments);
               }
@@ -237,11 +238,17 @@ export const Route = createFileRoute("/api/diary")({
 
           return Response.json(
             {
-              entries: result.rows.map((row) => {
+              entries: (entries ?? []).map((row) => {
                 const entryId = Number(row.id);
+                const photoUrls = photoUrlsByEntryId.get(entryId) ?? [];
+                const taggedUsers = taggedUsersByEntryId.get(entryId) ?? [];
+
                 return {
                   ...row,
-                  tagged_users: taggedUsersByEntryId.get(entryId) ?? [],
+                  photo_count: photoUrls.length,
+                  tag_count: taggedUsers.length,
+                  photo_urls: photoUrls,
+                  tagged_users: taggedUsers,
                   tagged_comments: tagCommentsByEntryId.get(entryId) ?? [],
                 };
               }),
@@ -249,9 +256,9 @@ export const Route = createFileRoute("/api/diary")({
             { status: 200 },
           );
         } catch (error) {
-          if (error instanceof Error && error.message.includes("DATABASE_URL is not configured")) {
+          if (isSupabaseEnvError(error)) {
             return Response.json(
-              { message: "Falta configurar DATABASE_URL en el archivo .env del proyecto." },
+              { message: "Falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en el archivo .env." },
               { status: 500 },
             );
           }
@@ -296,155 +303,140 @@ export const Route = createFileRoute("/api/diary")({
         }
 
         try {
-          const db = getDbPool();
-          const client = await db.connect();
+          const supabase = getSupabaseAdmin();
 
-          try {
-            await client.query("BEGIN");
+          const validTargets: Array<{ id: number; username: string }> = [];
+          const invalidUsernames: string[] = [];
 
-            const result = await client.query<{
-              id: string | number;
-              title: string | null;
-              content: string;
-              entry_date: string;
-              song_title: string | null;
-              song_artist: string | null;
-              song_url: string | null;
-              created_at: string;
-            }>(
-              `
-                INSERT INTO public.diary_entries (user_id, title, content, song_title, song_artist, song_url)
-                VALUES ($1::int, $2, $3, $4, $5, $6)
-                RETURNING id, title, content, entry_date, song_title, song_artist, song_url, created_at
-              `,
-              [userId, title, content, songTitle, songArtist, songUrl],
-            );
+          for (const username of taggedUsernames) {
+            const { data: targetUser, error: targetUserError } = await supabase
+              .from("users")
+              .select("id, username")
+              .ilike("username", username)
+              .limit(1)
+              .maybeSingle();
 
-            const createdEntryId = Number(result.rows[0].id);
-
-            if (taggedUsernames.length > 0) {
-              const usersResult = await client.query<{
-                id: string | number;
-                username: string;
-                is_friend: boolean;
-              }>(
-                `
-                  SELECT
-                    u.id,
-                    u.username,
-                    EXISTS (
-                      SELECT 1
-                      FROM public.friendships f
-                      WHERE f.status = 'accepted'
-                        AND (
-                          (f.requester_id = $1::int AND f.addressee_id = u.id)
-                          OR (f.addressee_id = $1::int AND f.requester_id = u.id)
-                        )
-                    ) AS is_friend
-                  FROM public.users u
-                  WHERE LOWER(u.username) = ANY($2::text[])
-                `,
-                [userId, taggedUsernames],
-              );
-
-              const foundByUsername = new Map(
-                usersResult.rows.map((row) => [row.username.toLowerCase(), row]),
-              );
-
-              const invalidUsernames = taggedUsernames.filter((username) => {
-                const row = foundByUsername.get(username);
-                if (!row) {
-                  return true;
-                }
-
-                return Number(row.id) === userId || !row.is_friend;
-              });
-
-              if (invalidUsernames.length > 0) {
-                await client.query("ROLLBACK");
-                return Response.json(
-                  {
-                    message:
-                      `No puedes etiquetar estos usuarios (deben existir y ser amigos aceptados): ${invalidUsernames.join(", ")}`,
-                  },
-                  { status: 400 },
-                );
-              }
-
-              for (const username of taggedUsernames) {
-                const target = foundByUsername.get(username);
-                if (!target) {
-                  continue;
-                }
-
-                await client.query(
-                  `
-                    INSERT INTO public.entry_tags (entry_id, tagged_user_id, tagged_by_user_id)
-                    VALUES ($1::int, $2::int, $3::int)
-                    ON CONFLICT (entry_id, tagged_user_id) DO NOTHING
-                  `,
-                  [createdEntryId, Number(target.id), userId],
-                );
-              }
+            if (targetUserError) {
+              throw targetUserError;
             }
 
-            const createdEntryDate = result.rows[0].entry_date;
+            if (!targetUser) {
+              invalidUsernames.push(username);
+              continue;
+            }
 
-            await client.query(
-              `
-                WITH week_bounds AS (
-                  SELECT
-                    DATE_TRUNC('week', $2::date)::date AS week_start_date,
-                    (DATE_TRUNC('week', $2::date)::date + 6) AS week_end_date
-                ),
-                week_stats AS (
-                  SELECT
-                    wb.week_start_date,
-                    wb.week_end_date,
-                    COUNT(DISTINCT de.entry_date)::int AS days_written
-                  FROM week_bounds wb
-                  LEFT JOIN public.diary_entries de
-                    ON de.user_id = $1::int
-                    AND de.entry_date BETWEEN wb.week_start_date AND wb.week_end_date
-                  GROUP BY wb.week_start_date, wb.week_end_date
-                )
-                INSERT INTO public.weekly_streaks (user_id, week_start_date, week_end_date, days_written, completed)
-                SELECT
-                  $1::int,
-                  ws.week_start_date,
-                  ws.week_end_date,
-                  ws.days_written,
-                  ws.days_written = 7
-                FROM week_stats ws
-                ON CONFLICT (user_id, week_start_date)
-                DO UPDATE SET
-                  week_end_date = EXCLUDED.week_end_date,
-                  days_written = EXCLUDED.days_written,
-                  completed = EXCLUDED.completed,
-                  updated_at = NOW()
-              `,
-              [userId, createdEntryDate],
-            );
+            const targetUserId = Number(targetUser.id);
+            if (targetUserId === userId) {
+              invalidUsernames.push(username);
+              continue;
+            }
 
-            await client.query("COMMIT");
+            const { data: friendship, error: friendshipError } = await supabase
+              .from("friendships")
+              .select("id")
+              .eq("status", "accepted")
+              .in("requester_id", [userId, targetUserId])
+              .in("addressee_id", [userId, targetUserId])
+              .limit(1)
+              .maybeSingle();
 
+            if (friendshipError) {
+              throw friendshipError;
+            }
+
+            if (!friendship) {
+              invalidUsernames.push(username);
+              continue;
+            }
+
+            validTargets.push({ id: targetUserId, username: targetUser.username });
+          }
+
+          if (invalidUsernames.length > 0) {
             return Response.json(
               {
-                message: "Entrada creada correctamente",
-                entry: result.rows[0],
+                message:
+                  `No puedes etiquetar estos usuarios (deben existir y ser amigos aceptados): ${invalidUsernames.join(", ")}`,
               },
-              { status: 201 },
+              { status: 400 },
             );
-          } catch (error) {
-            await client.query("ROLLBACK");
-            throw error;
-          } finally {
-            client.release();
           }
+
+          const { data: createdEntry, error: createEntryError } = await supabase
+            .from("diary_entries")
+            .insert({
+              user_id: userId,
+              title,
+              content,
+              song_title: songTitle,
+              song_artist: songArtist,
+              song_url: songUrl,
+            })
+            .select("id, title, content, entry_date, song_title, song_artist, song_url, created_at")
+            .single();
+
+          if (createEntryError) {
+            throw createEntryError;
+          }
+
+          const createdEntryId = Number(createdEntry.id);
+
+          if (validTargets.length > 0) {
+            const { error: tagsInsertError } = await supabase.from("entry_tags").upsert(
+              validTargets.map((target) => ({
+                entry_id: createdEntryId,
+                tagged_user_id: target.id,
+                tagged_by_user_id: userId,
+              })),
+              { onConflict: "entry_id,tagged_user_id", ignoreDuplicates: true },
+            );
+
+            if (tagsInsertError) {
+              throw tagsInsertError;
+            }
+          }
+
+          const { weekStartDate, weekEndDate } = getWeekBoundsForDate(createdEntry.entry_date);
+          const { data: weekEntries, error: weekEntriesError } = await supabase
+            .from("diary_entries")
+            .select("entry_date")
+            .eq("user_id", userId)
+            .gte("entry_date", weekStartDate)
+            .lte("entry_date", weekEndDate);
+
+          if (weekEntriesError) {
+            throw weekEntriesError;
+          }
+
+          const daysWritten = new Set((weekEntries ?? []).map((row) => row.entry_date)).size;
+          const { error: streakError } = await supabase
+            .from("weekly_streaks")
+            .upsert(
+              {
+                user_id: userId,
+                week_start_date: weekStartDate,
+                week_end_date: weekEndDate,
+                days_written: daysWritten,
+                completed: daysWritten === 7,
+              },
+              { onConflict: "user_id,week_start_date" },
+            );
+
+          if (streakError) {
+            throw streakError;
+          }
+
+          return Response.json(
+            {
+              message: "Entrada creada correctamente",
+              entry: createdEntry,
+            },
+            { status: 201 },
+          );
         } catch (error) {
-          if (error instanceof Error && error.message.includes("DATABASE_URL is not configured")) {
+          if (isSupabaseEnvError(error)) {
             return Response.json(
-              { message: "Falta configurar DATABASE_URL en el archivo .env del proyecto." },
+              { message: "Falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en el archivo .env." },
               { status: 500 },
             );
           }

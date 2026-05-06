@@ -1,16 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import type { DatabaseError } from "pg";
 import { parseCookies, SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth-session";
-import { getDbPool } from "@/lib/db";
+import { getErrorCode, getSupabaseAdmin, isSupabaseEnvError } from "@/lib/supabase";
 
 type CreateTagPayload = {
   entryId?: unknown;
   username?: unknown;
 };
-
-function getErrorCode(error: unknown) {
-  return (error as DatabaseError | undefined)?.code;
-}
 
 function getSessionUserId(request: Request) {
   const cookies = parseCookies(request.headers.get("cookie"));
@@ -63,75 +58,77 @@ export const Route = createFileRoute("/api/tagged/tag")({
         }
 
         try {
-          const db = getDbPool();
+          const supabase = getSupabaseAdmin();
 
-          const ownerResult = await db.query<{ id: string | number }>(
-            `
-              SELECT id
-              FROM public.diary_entries
-              WHERE id = $1::int
-                AND user_id = $2::int
-              LIMIT 1
-            `,
-            [entryId, userId],
-          );
+          const { data: ownerEntry, error: ownerError } = await supabase
+            .from("diary_entries")
+            .select("id")
+            .eq("id", entryId)
+            .eq("user_id", userId)
+            .limit(1)
+            .maybeSingle();
 
-          if (ownerResult.rowCount === 0) {
+          if (ownerError) {
+            throw ownerError;
+          }
+
+          if (!ownerEntry) {
             return Response.json({ message: "Solo puedes etiquetar en tus propias entradas." }, { status: 403 });
           }
 
-          const targetResult = await db.query<{ id: string | number; username: string }>(
-            `
-              SELECT id, username
-              FROM public.users
-              WHERE LOWER(username) = $1
-              LIMIT 1
-            `,
-            [username],
-          );
+          const { data: targetUser, error: targetError } = await supabase
+            .from("users")
+            .select("id, username")
+            .ilike("username", username)
+            .limit(1)
+            .maybeSingle();
 
-          if (targetResult.rowCount === 0) {
+          if (targetError) {
+            throw targetError;
+          }
+
+          if (!targetUser) {
             return Response.json({ message: "No encontramos un usuario con ese username." }, { status: 404 });
           }
 
-          const taggedUserId = Number(targetResult.rows[0].id);
+          const taggedUserId = Number(targetUser.id);
 
           if (taggedUserId === userId) {
             return Response.json({ message: "No puedes etiquetarte a ti mismo." }, { status: 400 });
           }
 
-          const friendResult = await db.query<{ exists: boolean }>(
-            `
-              SELECT EXISTS (
-                SELECT 1
-                FROM public.friendships f
-                WHERE f.status = 'accepted'
-                  AND (
-                    (f.requester_id = $1::int AND f.addressee_id = $2::int)
-                    OR (f.addressee_id = $1::int AND f.requester_id = $2::int)
-                  )
-              ) AS exists
-            `,
-            [userId, taggedUserId],
-          );
+          const { data: friendship, error: friendshipError } = await supabase
+            .from("friendships")
+            .select("id")
+            .eq("status", "accepted")
+            .in("requester_id", [userId, taggedUserId])
+            .in("addressee_id", [userId, taggedUserId])
+            .limit(1)
+            .maybeSingle();
 
-          if (!friendResult.rows[0]?.exists) {
+          if (friendshipError) {
+            throw friendshipError;
+          }
+
+          if (!friendship) {
             return Response.json({ message: "Solo puedes etiquetar amigos aceptados." }, { status: 400 });
           }
 
-          await db.query(
-            `
-              INSERT INTO public.entry_tags (entry_id, tagged_user_id, tagged_by_user_id)
-              VALUES ($1::int, $2::int, $3::int)
-            `,
-            [entryId, taggedUserId, userId],
-          );
+          const { error: insertError } = await supabase.from("entry_tags").insert({
+            entry_id: entryId,
+            tagged_user_id: taggedUserId,
+            tagged_by_user_id: userId,
+          });
+
+          if (insertError) {
+            throw insertError;
+          }
 
           return Response.json({ message: "Usuario etiquetado correctamente." }, { status: 201 });
         } catch (error) {
-          if (error instanceof Error && error.message.includes("DATABASE_URL is not configured")) {
+          if (isSupabaseEnvError(error)) {
             return Response.json(
-              { message: "Falta configurar DATABASE_URL en el archivo .env del proyecto." },
+              { message: "Falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en el archivo .env." },
               { status: 500 },
             );
           }

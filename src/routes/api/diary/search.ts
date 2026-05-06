@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { parseCookies, SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth-session";
-import { getDbPool } from "@/lib/db";
+import { getSupabaseAdmin, isSupabaseEnvError } from "@/lib/supabase";
 
 function getSessionUserId(request: Request) {
   const cookies = parseCookies(request.headers.get("cookie"));
@@ -43,70 +43,65 @@ export const Route = createFileRoute("/api/diary/search")({
 
         const url = new URL(request.url);
         const q = normalizeSearchTerm(url.searchParams.get("q"));
-        const likeParam = `%${q}%`;
 
         try {
-          const db = getDbPool();
-          const result = await db.query<{
-            id: string | number;
-            title: string | null;
-            content: string;
-            entry_date: string;
-            song_title: string | null;
-            song_artist: string | null;
-            song_url: string | null;
-            photo_count: number;
-            photo_urls: string[];
-            created_at: string;
-          }>(
-            `
-              SELECT
-                de.id,
-                de.title,
-                de.content,
-                de.entry_date,
-                de.song_title,
-                de.song_artist,
-                de.song_url,
-                (
-                  SELECT COUNT(*)::int
-                  FROM public.entry_photos ep
-                  WHERE ep.entry_id = de.id
-                ) AS photo_count,
-                COALESCE(
-                  (
-                    SELECT array_agg(ep.photo_url ORDER BY ep.created_at DESC)
-                    FROM public.entry_photos ep
-                    WHERE ep.entry_id = de.id
-                  ),
-                  ARRAY[]::text[]
-                ) AS photo_urls,
-                de.created_at
-              FROM public.diary_entries de
-              WHERE de.user_id = $1
-                AND (
-                  $2 = ''
-                  OR COALESCE(de.title, '') ILIKE $3
-                  OR de.content ILIKE $3
-                )
-              ORDER BY
-                CASE
-                  WHEN $2 <> '' AND COALESCE(de.title, '') ILIKE $3 THEN 0
-                  WHEN $2 <> '' AND de.content ILIKE $3 THEN 1
-                  ELSE 2
-                END,
-                de.entry_date DESC,
-                de.created_at DESC
-              LIMIT 24
-            `,
-            [userId, q, likeParam],
-          );
+          const supabase = getSupabaseAdmin();
+          const escaped = q.replace(/[%_]/g, "");
+          let query = supabase
+            .from("diary_entries")
+            .select("id, title, content, entry_date, song_title, song_artist, song_url, created_at")
+            .eq("user_id", userId)
+            .order("entry_date", { ascending: false })
+            .order("created_at", { ascending: false })
+            .limit(24);
 
-          return Response.json({ entries: result.rows, query: q }, { status: 200 });
+          if (escaped) {
+            query = query.or(`title.ilike.%${escaped}%,content.ilike.%${escaped}%`);
+          }
+
+          const { data: entries, error: entriesError } = await query;
+
+          if (entriesError) {
+            throw entriesError;
+          }
+
+          const entryIds = (entries ?? []).map((row) => Number(row.id));
+          let photosByEntryId = new Map<number, string[]>();
+
+          if (entryIds.length > 0) {
+            const { data: photos, error: photosError } = await supabase
+              .from("entry_photos")
+              .select("entry_id, photo_url, created_at")
+              .in("entry_id", entryIds)
+              .order("created_at", { ascending: false });
+
+            if (photosError) {
+              throw photosError;
+            }
+
+            photosByEntryId = (photos ?? []).reduce((acc, row) => {
+              const key = Number(row.entry_id);
+              const current = acc.get(key) ?? [];
+              current.push(row.photo_url);
+              acc.set(key, current);
+              return acc;
+            }, new Map<number, string[]>());
+          }
+
+          const hydratedEntries = (entries ?? []).map((row) => {
+            const photoUrls = photosByEntryId.get(Number(row.id)) ?? [];
+            return {
+              ...row,
+              photo_count: photoUrls.length,
+              photo_urls: photoUrls,
+            };
+          });
+
+          return Response.json({ entries: hydratedEntries, query: q }, { status: 200 });
         } catch (error) {
-          if (error instanceof Error && error.message.includes("DATABASE_URL is not configured")) {
+          if (isSupabaseEnvError(error)) {
             return Response.json(
-              { message: "Falta configurar DATABASE_URL en el archivo .env del proyecto." },
+              { message: "Falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en el archivo .env." },
               { status: 500 },
             );
           }

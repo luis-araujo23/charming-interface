@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { parseCookies, SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth-session";
-import { getDbPool } from "@/lib/db";
+import { getSupabaseAdmin, isSupabaseEnvError } from "@/lib/supabase";
 
 type RespondPayload = {
   friendshipId?: unknown;
@@ -58,22 +58,20 @@ export const Route = createFileRoute("/api/friends/respond")({
         }
 
         try {
-          const db = getDbPool();
-          const result = await db.query<{ id: string | number }>(
-            `
-              UPDATE public.friendships
-              SET
-                status = $1,
-                updated_at = now()
-              WHERE id = $2::int
-                AND addressee_id = $3::int
-                AND status = 'pending'
-              RETURNING id
-            `,
-            [action === "accept" ? "accepted" : "rejected", friendshipId, userId],
-          );
+          const supabase = getSupabaseAdmin();
+          const { data: result, error: updateError } = await supabase
+            .from("friendships")
+            .update({ status: action === "accept" ? "accepted" : "rejected" })
+            .eq("id", friendshipId)
+            .eq("addressee_id", userId)
+            .eq("status", "pending")
+            .select("id");
 
-          if (result.rowCount === 0) {
+          if (updateError) {
+            throw updateError;
+          }
+
+          if (!result || result.length === 0) {
             return Response.json(
               { message: "No encontramos una solicitud pendiente para responder." },
               { status: 404 },
@@ -87,9 +85,9 @@ export const Route = createFileRoute("/api/friends/respond")({
             { status: 200 },
           );
         } catch (error) {
-          if (error instanceof Error && error.message.includes("DATABASE_URL is not configured")) {
+          if (isSupabaseEnvError(error)) {
             return Response.json(
-              { message: "Falta configurar DATABASE_URL en el archivo .env del proyecto." },
+              { message: "Falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en el archivo .env." },
               { status: 500 },
             );
           }

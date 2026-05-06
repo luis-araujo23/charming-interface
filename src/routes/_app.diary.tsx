@@ -151,6 +151,9 @@ function DiaryPage() {
   const [entries, setEntries] = useState<DiaryEntryPreview[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [rememberSaving, setRememberSaving] = useState(false);
+  const [rememberMessage, setRememberMessage] = useState<string | null>(null);
+  const [rememberError, setRememberError] = useState<string | null>(null);
 
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -352,6 +355,50 @@ function DiaryPage() {
       setSaveError(message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleRememberSelection = async (payload: {
+    entryId: string;
+    entryTitle: string;
+    selectedText: string;
+  }) => {
+    const entryIdNumber = Number(payload.entryId);
+    if (!Number.isInteger(entryIdNumber) || entryIdNumber <= 0) {
+      setRememberError("No se pudo identificar la entrada seleccionada.");
+      return;
+    }
+
+    setRememberSaving(true);
+    setRememberError(null);
+    setRememberMessage(null);
+
+    try {
+      const response = await fetch("/api/memories", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          entry_id: entryIdNumber,
+          selected_text: payload.selectedText,
+        }),
+      });
+
+      const data = (await response.json().catch(() => ({}))) as {
+        message?: string;
+      };
+
+      if (!response.ok) {
+        setRememberError(data.message ?? "No se pudo guardar el recuerdo.");
+        return;
+      }
+
+      setRememberMessage(data.message ?? "Recuerdo guardado correctamente.");
+    } catch {
+      setRememberError("No se pudo guardar el recuerdo.");
+    } finally {
+      setRememberSaving(false);
     }
   };
 
@@ -558,6 +605,9 @@ function DiaryPage() {
         </div>
       ) : null}
 
+      {rememberError ? <p className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm text-destructive">{rememberError}</p> : null}
+      {rememberMessage ? <p className="mb-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm text-emerald-700">{rememberMessage}</p> : null}
+
       {loading ? (
         <p className="px-2 py-6 text-sm text-muted-foreground">Cargando entradas...</p>
       ) : errorMessage ? (
@@ -569,7 +619,12 @@ function DiaryPage() {
             : "Todavía no tienes entradas. Crea la primera con el botón Nueva entrada."}
         </p>
       ) : (
-        <DiaryBook entries={entries} initialActiveId={entryId} />
+        <DiaryBook
+          entries={entries}
+          initialActiveId={entryId}
+          onRememberSelection={handleRememberSelection}
+          rememberSaving={rememberSaving}
+        />
       )}
     </div>
   );

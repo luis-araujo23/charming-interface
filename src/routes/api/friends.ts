@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { parseCookies, SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth-session";
-import { getDbPool } from "@/lib/db";
+import { getSupabaseAdmin, isSupabaseEnvError } from "@/lib/supabase";
 
 function getSessionUserId(request: Request) {
   const cookies = parseCookies(request.headers.get("cookie"));
@@ -34,93 +34,129 @@ export const Route = createFileRoute("/api/friends")({
         }
 
         try {
-          const db = getDbPool();
+          const supabase = getSupabaseAdmin();
 
-          const pendingResult = await db.query<{
-            friendship_id: string | number;
-            user_id: string | number;
-            username: string;
-          }>(
-            `
-              SELECT
-                f.id AS friendship_id,
-                u.id AS user_id,
-                u.username
-              FROM public.friendships f
-              INNER JOIN public.users u ON u.id = f.requester_id
-              WHERE f.addressee_id = $1::int
-                AND f.status = 'pending'
-              ORDER BY f.created_at DESC
-            `,
-            [userId],
-          );
+          const { data: pendingRows, error: pendingError } = await supabase
+            .from("friendships")
+            .select("id, requester_id")
+            .eq("addressee_id", userId)
+            .eq("status", "pending")
+            .order("created_at", { ascending: false });
 
-          const outgoingPendingResult = await db.query<{
-            friendship_id: string | number;
-            user_id: string | number;
-            username: string;
-          }>(
-            `
-              SELECT
-                f.id AS friendship_id,
-                u.id AS user_id,
-                u.username
-              FROM public.friendships f
-              INNER JOIN public.users u ON u.id = f.addressee_id
-              WHERE f.requester_id = $1::int
-                AND f.status = 'pending'
-              ORDER BY f.created_at DESC
-            `,
-            [userId],
-          );
+          if (pendingError) {
+            throw pendingError;
+          }
 
-          const friendsResult = await db.query<{
-            friendship_id: string | number;
-            user_id: string | number;
-            username: string;
-          }>(
-            `
-              SELECT
-                f.id AS friendship_id,
-                u.id AS user_id,
-                u.username
-              FROM public.friendships f
-              INNER JOIN public.users u
-                ON u.id = CASE
-                  WHEN f.requester_id = $1::int THEN f.addressee_id
-                  ELSE f.requester_id
-                END
-              WHERE (f.requester_id = $1::int OR f.addressee_id = $1::int)
-                AND f.status = 'accepted'
-              ORDER BY u.username ASC
-            `,
-            [userId],
-          );
+          const { data: outgoingRows, error: outgoingError } = await supabase
+            .from("friendships")
+            .select("id, addressee_id")
+            .eq("requester_id", userId)
+            .eq("status", "pending")
+            .order("created_at", { ascending: false });
+
+          if (outgoingError) {
+            throw outgoingError;
+          }
+
+          const { data: acceptedRows, error: acceptedError } = await supabase
+            .from("friendships")
+            .select("id, requester_id, addressee_id")
+            .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
+            .eq("status", "accepted");
+
+          if (acceptedError) {
+            throw acceptedError;
+          }
+
+          const userIds = new Set<number>();
+          for (const row of pendingRows ?? []) {
+            userIds.add(Number(row.requester_id));
+          }
+          for (const row of outgoingRows ?? []) {
+            userIds.add(Number(row.addressee_id));
+          }
+          for (const row of acceptedRows ?? []) {
+            const requesterId = Number(row.requester_id);
+            const addresseeId = Number(row.addressee_id);
+            userIds.add(requesterId === userId ? addresseeId : requesterId);
+          }
+
+          let usersById = new Map<number, { id: number; username: string }>();
+          if (userIds.size > 0) {
+            const { data: usersRows, error: usersError } = await supabase
+              .from("users")
+              .select("id, username")
+              .in("id", [...userIds]);
+
+            if (usersError) {
+              throw usersError;
+            }
+
+            usersById = new Map((usersRows ?? []).map((row) => [Number(row.id), { id: Number(row.id), username: row.username }]));
+          }
+
+          const pendingRequests = (pendingRows ?? [])
+            .map((row) => {
+              const target = usersById.get(Number(row.requester_id));
+              if (!target) {
+                return null;
+              }
+
+              return {
+                friendshipId: Number(row.id),
+                userId: target.id,
+                username: target.username,
+              };
+            })
+            .filter(Boolean);
+
+          const outgoingPendingRequests = (outgoingRows ?? [])
+            .map((row) => {
+              const target = usersById.get(Number(row.addressee_id));
+              if (!target) {
+                return null;
+              }
+
+              return {
+                friendshipId: Number(row.id),
+                userId: target.id,
+                username: target.username,
+              };
+            })
+            .filter(Boolean);
+
+          const friends = (acceptedRows ?? [])
+            .map((row) => {
+              const requesterId = Number(row.requester_id);
+              const addresseeId = Number(row.addressee_id);
+              const friendId = requesterId === userId ? addresseeId : requesterId;
+              const target = usersById.get(friendId);
+
+              if (!target) {
+                return null;
+              }
+
+              return {
+                friendshipId: Number(row.id),
+                userId: target.id,
+                username: target.username,
+              };
+            })
+            .filter(Boolean)
+            .sort((a, b) => a.username.localeCompare(b.username));
 
           return Response.json(
             {
-              pendingRequests: pendingResult.rows.map((row) => ({
-                friendshipId: Number(row.friendship_id),
-                userId: Number(row.user_id),
-                username: row.username,
-              })),
-              outgoingPendingRequests: outgoingPendingResult.rows.map((row) => ({
-                friendshipId: Number(row.friendship_id),
-                userId: Number(row.user_id),
-                username: row.username,
-              })),
-              friends: friendsResult.rows.map((row) => ({
-                friendshipId: Number(row.friendship_id),
-                userId: Number(row.user_id),
-                username: row.username,
-              })),
+              pendingRequests,
+              outgoingPendingRequests,
+              friends,
             },
             { status: 200 },
           );
         } catch (error) {
-          if (error instanceof Error && error.message.includes("DATABASE_URL is not configured")) {
+          if (isSupabaseEnvError(error)) {
             return Response.json(
-              { message: "Falta configurar DATABASE_URL en el archivo .env del proyecto." },
+              { message: "Falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en el archivo .env." },
               { status: 500 },
             );
           }

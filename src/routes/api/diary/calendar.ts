@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { parseCookies, SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth-session";
-import { getDbPool } from "@/lib/db";
+import { getSupabaseAdmin, isSupabaseEnvError } from "@/lib/supabase";
 
 function getSessionUserId(request: Request) {
   const cookies = parseCookies(request.headers.get("cookie"));
@@ -48,37 +48,45 @@ export const Route = createFileRoute("/api/diary/calendar")({
         const { year, month } = parseYearMonth(url);
 
         try {
-          const db = getDbPool();
-          const result = await db.query<{
-            day: number;
-            count: number;
-          }>(
-            `
-              SELECT
-                EXTRACT(DAY FROM de.entry_date)::int AS day,
-                COUNT(*)::int AS count
-              FROM public.diary_entries de
-              WHERE de.user_id = $1
-                AND EXTRACT(YEAR FROM de.entry_date) = $2
-                AND EXTRACT(MONTH FROM de.entry_date) = $3
-              GROUP BY de.entry_date
-              ORDER BY day ASC
-            `,
-            [userId, year, month],
-          );
+          const supabase = getSupabaseAdmin();
+          const monthStart = `${year}-${String(month).padStart(2, "0")}-01`;
+          const monthEndDate = new Date(Date.UTC(year, month, 0));
+          const monthEnd = `${year}-${String(month).padStart(2, "0")}-${String(monthEndDate.getUTCDate()).padStart(2, "0")}`;
+
+          const { data: entries, error: entriesError } = await supabase
+            .from("diary_entries")
+            .select("entry_date")
+            .eq("user_id", userId)
+            .gte("entry_date", monthStart)
+            .lte("entry_date", monthEnd);
+
+          if (entriesError) {
+            throw entriesError;
+          }
+
+          const dayCountMap = new Map<number, number>();
+          for (const row of entries ?? []) {
+            const date = new Date(`${row.entry_date}T00:00:00Z`);
+            const day = date.getUTCDate();
+            dayCountMap.set(day, (dayCountMap.get(day) ?? 0) + 1);
+          }
+
+          const days = [...dayCountMap.entries()]
+            .map(([day, count]) => ({ day, count }))
+            .sort((a, b) => a.day - b.day);
 
           return Response.json(
             {
               year,
               month,
-              days: result.rows,
+              days,
             },
             { status: 200 },
           );
         } catch (error) {
-          if (error instanceof Error && error.message.includes("DATABASE_URL is not configured")) {
+          if (isSupabaseEnvError(error)) {
             return Response.json(
-              { message: "Falta configurar DATABASE_URL en el archivo .env del proyecto." },
+              { message: "Falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en el archivo .env." },
               { status: 500 },
             );
           }

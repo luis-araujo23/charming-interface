@@ -1,8 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { hash } from "bcryptjs";
-import type { DatabaseError } from "pg";
 import { buildSessionCookie, createSessionToken } from "@/lib/auth-session";
-import { getDbPool } from "@/lib/db";
+import { getErrorCode, getSupabaseAdmin, isSupabaseEnvError } from "@/lib/supabase";
 
 const MIN_PASSWORD_LENGTH = 8;
 
@@ -11,10 +10,6 @@ type RegisterPayload = {
   email?: unknown;
   password?: unknown;
 };
-
-function getErrorCode(error: unknown) {
-  return (error as DatabaseError | undefined)?.code;
-}
 
 export const Route = createFileRoute("/api/auth/register")({
   server: {
@@ -46,22 +41,21 @@ export const Route = createFileRoute("/api/auth/register")({
         const passwordHash = await hash(password, 12);
 
         try {
-          const db = getDbPool();
-          const result = await db.query<{
-            id: string | number;
-            username: string;
-            email: string;
-            created_at: string;
-          }>(
-            `
-              INSERT INTO public.users (username, email, password_hash)
-              VALUES ($1, $2, $3)
-              RETURNING id, username, email, created_at
-            `,
-            [username, email, passwordHash],
-          );
+          const supabase = getSupabaseAdmin();
+          const { data: createdUser, error: createError } = await supabase
+            .from("users")
+            .insert({
+              username,
+              email,
+              password_hash: passwordHash,
+            })
+            .select("id, username, email, created_at")
+            .single();
 
-          const createdUser = result.rows[0];
+          if (createError) {
+            throw createError;
+          }
+
           const token = createSessionToken({
             userId: String(createdUser.id),
             username: createdUser.username,
@@ -82,9 +76,9 @@ export const Route = createFileRoute("/api/auth/register")({
             },
           );
         } catch (error) {
-          if (error instanceof Error && error.message.includes("DATABASE_URL is not configured")) {
+          if (isSupabaseEnvError(error)) {
             return Response.json(
-              { message: "Falta configurar DATABASE_URL en el archivo .env del proyecto." },
+              { message: "Falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en el archivo .env." },
               { status: 500 },
             );
           }
