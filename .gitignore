@@ -6,8 +6,12 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+*.stackdump
 
+# Dependencies
 node_modules
+
+# Build outputs
 dist
 dist-ssr
 .output
@@ -15,6 +19,24 @@ dist-ssr
 .tanstack/**
 .nitro
 *.local
+
+# Caches
+.cache/
+.vite/
+.turbo/
+.parcel-cache/
+coverage/
+*.tsbuildinfo
+
+# Test artifacts
+playwright-report/
+test-results/
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.*.example
 
 # Wrangler / Cloudflare
 .wrangler/
@@ -25,6 +47,12 @@ dist-ssr
 !.vscode/extensions.json
 .idea
 .DS_Store
+Thumbs.db
+Desktop.ini
+*.tmp
+*.temp
+*.bak
+*.orig
 *.suo
 *.ntvs*
 *.njsproj
