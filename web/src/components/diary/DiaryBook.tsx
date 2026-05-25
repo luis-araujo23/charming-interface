@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ChevronLeft, ChevronRight, MessageCircle, Music, Image as ImageIcon, Tag, X } from "lucide-react";
 import type { DiaryEntryPreview } from "@/components/diary/DiaryEntryCard";
@@ -6,6 +6,12 @@ import type { DiaryEntryPreview } from "@/components/diary/DiaryEntryCard";
 interface DiaryBookProps {
   entries: DiaryEntryPreview[];
   initialActiveId?: string;
+  onRememberSelection?: (payload: {
+    entryId: string;
+    entryTitle: string;
+    selectedText: string;
+  }) => Promise<void> | void;
+  rememberSaving?: boolean;
 }
 
 const MAX_CHARS_PER_PAGE = 780;
@@ -51,13 +57,15 @@ function paginateExcerpt(text: string, maxCharsPerPage = MAX_CHARS_PER_PAGE) {
  * Renders the diary entries as an open book with two facing pages.
  * Left page = entry list (table of contents). Right page = selected entry.
  */
-export function DiaryBook({ entries, initialActiveId }: DiaryBookProps) {
+export function DiaryBook({ entries, initialActiveId, onRememberSelection, rememberSaving = false }: DiaryBookProps) {
   const [activeId, setActiveId] = useState(entries[0]?.id ?? null);
   const [indexPage, setIndexPage] = useState(0);
   const [indexPageDirection, setIndexPageDirection] = useState<1 | -1>(1);
   const [entryPage, setEntryPage] = useState(0);
   const [entryPageDirection, setEntryPageDirection] = useState<1 | -1>(1);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [selectedText, setSelectedText] = useState("");
+  const selectableTextRef = useRef<HTMLDivElement | null>(null);
   const active = entries.find((e) => e.id === activeId) ?? entries[0];
   const activePhotoUrls = active?.photoUrls ?? [];
   const currentLightboxPhoto =
@@ -77,6 +85,7 @@ export function DiaryBook({ entries, initialActiveId }: DiaryBookProps) {
     setEntryPage(0);
     setEntryPageDirection(1);
     setLightboxIndex(null);
+    setSelectedText("");
   }, [active?.id]);
 
   useEffect(() => {
@@ -125,6 +134,31 @@ export function DiaryBook({ entries, initialActiveId }: DiaryBookProps) {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [lightboxIndex, activePhotoUrls.length]);
+
+  useEffect(() => {
+    const updateSelection = () => {
+      const container = selectableTextRef.current;
+      const selection = window.getSelection();
+
+      if (!container || !selection || selection.rangeCount === 0 || selection.isCollapsed) {
+        setSelectedText("");
+        return;
+      }
+
+      const range = selection.getRangeAt(0);
+      const commonAncestor = range.commonAncestorContainer;
+
+      if (!container.contains(commonAncestor)) {
+        setSelectedText("");
+        return;
+      }
+
+      setSelectedText(selection.toString().trim().slice(0, 2000));
+    };
+
+    document.addEventListener("selectionchange", updateSelection);
+    return () => document.removeEventListener("selectionchange", updateSelection);
+  }, []);
 
   const activeIndex = entries.findIndex((e) => e.id === active?.id);
   const totalIndexPages = Math.max(1, Math.ceil(entries.length / ENTRIES_PER_INDEX_PAGE));
@@ -192,6 +226,22 @@ export function DiaryBook({ entries, initialActiveId }: DiaryBookProps) {
 
     setEntryPageDirection(1);
     setEntryPage((current) => current + 1);
+  };
+
+  const handleRememberSelectionClick = async () => {
+    const cleanSelection = selectedText.trim();
+    if (!cleanSelection || !active || !onRememberSelection) {
+      return;
+    }
+
+    await onRememberSelection({
+      entryId: active.id,
+      entryTitle: active.title,
+      selectedText: cleanSelection,
+    });
+
+    window.getSelection()?.removeAllRanges();
+    setSelectedText("");
   };
 
   return (
@@ -333,7 +383,7 @@ export function DiaryBook({ entries, initialActiveId }: DiaryBookProps) {
                   <header className="mb-5 flex items-center justify-between text-xs uppercase tracking-[0.2em] text-muted-foreground">
                     <time>{active.date}</time>
                     <span className="font-hand text-base normal-case tracking-normal text-olive">
-                      Querida Kitty,
+                      Querida Kitty
                     </span>
                   </header>
 
@@ -342,7 +392,10 @@ export function DiaryBook({ entries, initialActiveId }: DiaryBookProps) {
                   </h2>
 
                   {!isMetaOnlyPage ? (
-                    <div className="mt-5 flex-1 overflow-hidden font-display text-[15px] leading-[1.9] text-foreground/85">
+                    <div
+                      ref={selectableTextRef}
+                      className="mt-5 flex-1 overflow-hidden font-display text-[15px] leading-[1.9] text-foreground/85"
+                    >
                       <AnimatePresence mode="wait" initial={false}>
                         <motion.p
                           key={`${active.id}-page-${entryPage}`}
@@ -384,6 +437,23 @@ export function DiaryBook({ entries, initialActiveId }: DiaryBookProps) {
                   ) : null}
 
                   {/* footer chips */}
+                  {selectedText && !isMetaOnlyPage && onRememberSelection ? (
+                    <div className="mt-3 rounded-lg border border-olive/20 bg-accent/20 p-2.5">
+                      <div className="mb-2 text-[11px] uppercase tracking-[0.15em] text-muted-foreground">
+                        Texto seleccionado
+                      </div>
+                      <p className="line-clamp-2 text-sm text-foreground/85">{selectedText}</p>
+                      <button
+                        type="button"
+                        onClick={() => void handleRememberSelectionClick()}
+                        disabled={rememberSaving}
+                        className="mt-2 rounded-full border border-olive/25 bg-cream px-3 py-1 text-xs text-olive-deep transition hover:bg-accent/30 disabled:opacity-50"
+                      >
+                        {rememberSaving ? "Guardando..." : "Guardar en recuerdos"}
+                      </button>
+                    </div>
+                  ) : null}
+
                   <footer className={`mt-6 flex flex-wrap items-center gap-3 border-t border-olive/20 pt-4 text-xs text-muted-foreground ${isMetaOnlyPage ? "opacity-60" : ""}`}>
                     {active.song && (
                       active.song.url ? (

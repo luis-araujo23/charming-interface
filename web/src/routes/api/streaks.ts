@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { parseCookies, SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth-session";
-import { getDbPool } from "@/lib/db";
+import { getSupabaseAdmin, isSupabaseEnvError } from "@/lib/supabase";
 
 function getSessionUserId(request: Request) {
   const cookies = parseCookies(request.headers.get("cookie"));
@@ -40,6 +40,27 @@ function buildWeekDays(weekStartDate: string, writtenDates: Set<string>) {
   });
 }
 
+function toIsoDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function getCurrentWeekBounds() {
+  const now = new Date();
+  const start = new Date(now);
+  const day = start.getDay();
+  const offset = (day + 6) % 7;
+  start.setDate(start.getDate() - offset);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+
+  return {
+    weekStartDate: toIsoDate(start),
+    weekEndDate: toIsoDate(end),
+  };
+}
+
 export const Route = createFileRoute("/api/streaks")({
   server: {
     handlers: {
@@ -51,102 +72,54 @@ export const Route = createFileRoute("/api/streaks")({
         }
 
         try {
-          const db = getDbPool();
+          const supabase = getSupabaseAdmin();
 
-          const syncResult = await db.query<{
-            week_start_date: string;
-            week_end_date: string;
-            days_written: number;
-            completed: boolean;
-          }>(
-            `
-              WITH week_bounds AS (
-                SELECT
-                  DATE_TRUNC('week', CURRENT_DATE)::date AS week_start_date,
-                  (DATE_TRUNC('week', CURRENT_DATE)::date + 6) AS week_end_date
-              ),
-              week_stats AS (
-                SELECT
-                  wb.week_start_date,
-                  wb.week_end_date,
-                  COUNT(DISTINCT de.entry_date)::int AS days_written
-                FROM week_bounds wb
-                LEFT JOIN public.diary_entries de
-                  ON de.user_id = $1::int
-                  AND de.entry_date BETWEEN wb.week_start_date AND wb.week_end_date
-                GROUP BY wb.week_start_date, wb.week_end_date
-              ),
-              upserted AS (
-                INSERT INTO public.weekly_streaks (user_id, week_start_date, week_end_date, days_written, completed)
-                SELECT
-                  $1::int,
-                  ws.week_start_date,
-                  ws.week_end_date,
-                  ws.days_written,
-                  ws.days_written >= 7
-                FROM week_stats ws
-                ON CONFLICT (user_id, week_start_date)
-                DO UPDATE SET
-                  week_end_date = EXCLUDED.week_end_date,
-                  days_written = EXCLUDED.days_written,
-                  completed = EXCLUDED.completed,
-                  updated_at = NOW()
-                RETURNING week_start_date, week_end_date, days_written, completed
-              )
-              SELECT
-                up.week_start_date::text AS week_start_date,
-                up.week_end_date::text AS week_end_date,
-                up.days_written,
-                up.completed
-              FROM upserted up
-              LIMIT 1
-            `,
-            [userId],
-          );
+          const { weekStartDate, weekEndDate } = getCurrentWeekBounds();
 
-          const synced = syncResult.rows[0];
-          const weekStartDate = synced.week_start_date;
-          const weekEndDate = synced.week_end_date;
-          const daysWritten = synced.days_written;
-          const completed = synced.completed;
+          const { data: weekEntries, error: weekEntriesError } = await supabase
+            .from("diary_entries")
+            .select("entry_date")
+            .eq("user_id", userId)
+            .gte("entry_date", weekStartDate)
+            .lte("entry_date", weekEndDate);
 
-          const entriesResult = await db.query<{ entry_date: string }>(
-            `
-              SELECT DISTINCT de.entry_date::text AS entry_date
-              FROM public.diary_entries de
-              WHERE de.user_id = $1::int
-                AND de.entry_date BETWEEN $2::date AND $3::date
-            `,
-            [userId, weekStartDate, weekEndDate],
-          );
+          if (weekEntriesError) {
+            throw weekEntriesError;
+          }
 
-          const writtenDates = new Set(entriesResult.rows.map((row) => row.entry_date));
+          const writtenDates = new Set((weekEntries ?? []).map((row) => row.entry_date));
+          const daysWritten = writtenDates.size;
+          const completed = daysWritten >= 7;
 
-          const completedHistoryResult = await db.query<{
-            week_start_date: string;
-            week_end_date: string;
-            days_written: number;
-            completed: boolean;
-            created_at: string;
-            updated_at: string;
-          }>(
-            `
-              SELECT
-                ws.week_start_date::text AS week_start_date,
-                ws.week_end_date::text AS week_end_date,
-                ws.days_written,
-                ws.completed,
-                ws.created_at::text AS created_at,
-                ws.updated_at::text AS updated_at
-              FROM public.weekly_streaks ws
-              WHERE ws.user_id = $1::int
-                AND ws.completed = TRUE
-              ORDER BY ws.week_start_date DESC
-            `,
-            [userId],
-          );
+          const { error: upsertError } = await supabase
+            .from("weekly_streaks")
+            .upsert(
+              {
+                user_id: userId,
+                week_start_date: weekStartDate,
+                week_end_date: weekEndDate,
+                days_written: daysWritten,
+                completed,
+              },
+              { onConflict: "user_id,week_start_date" },
+            );
 
-          const completedWeeksHistory = completedHistoryResult.rows.map((row) => ({
+          if (upsertError) {
+            throw upsertError;
+          }
+
+          const { data: completedHistoryRows, error: completedHistoryError } = await supabase
+            .from("weekly_streaks")
+            .select("week_start_date, week_end_date, days_written, completed, created_at, updated_at")
+            .eq("user_id", userId)
+            .eq("completed", true)
+            .order("week_start_date", { ascending: false });
+
+          if (completedHistoryError) {
+            throw completedHistoryError;
+          }
+
+          const completedWeeksHistory = (completedHistoryRows ?? []).map((row) => ({
             weekStartDate: row.week_start_date,
             weekEndDate: row.week_end_date,
             daysWritten: row.days_written,
@@ -168,9 +141,9 @@ export const Route = createFileRoute("/api/streaks")({
             { status: 200 },
           );
         } catch (error) {
-          if (error instanceof Error && error.message.includes("DATABASE_URL is not configured")) {
+          if (isSupabaseEnvError(error)) {
             return Response.json(
-              { message: "Falta configurar DATABASE_URL en el archivo .env del proyecto." },
+              { message: "Falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en el archivo .env." },
               { status: 500 },
             );
           }

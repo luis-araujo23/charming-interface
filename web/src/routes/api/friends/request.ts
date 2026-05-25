@@ -1,15 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import type { DatabaseError } from "pg";
 import { parseCookies, SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth-session";
-import { getDbPool } from "@/lib/db";
+import { getErrorCode, getSupabaseAdmin, isSupabaseEnvError } from "@/lib/supabase";
 
 type SendFriendRequestPayload = {
   username?: unknown;
 };
-
-function getErrorCode(error: unknown) {
-  return (error as DatabaseError | undefined)?.code;
-}
 
 function getSessionUserId(request: Request) {
   const cookies = parseCookies(request.headers.get("cookie"));
@@ -57,40 +52,42 @@ export const Route = createFileRoute("/api/friends/request")({
         }
 
         try {
-          const db = getDbPool();
-          const targetUserResult = await db.query<{ id: string | number }>(
-            `
-              SELECT id
-              FROM public.users
-              WHERE LOWER(username) = LOWER($1)
-              LIMIT 1
-            `,
-            [username],
-          );
+          const supabase = getSupabaseAdmin();
+          const { data: targetUser, error: targetUserError } = await supabase
+            .from("users")
+            .select("id")
+            .ilike("username", username)
+            .limit(1)
+            .maybeSingle();
 
-          if (targetUserResult.rowCount === 0) {
+          if (targetUserError) {
+            throw targetUserError;
+          }
+
+          if (!targetUser) {
             return Response.json({ message: "No encontramos un usuario con ese username." }, { status: 404 });
           }
 
-          const addresseeId = Number(targetUserResult.rows[0].id);
+          const addresseeId = Number(targetUser.id);
 
           if (addresseeId === userId) {
             return Response.json({ message: "No puedes enviarte solicitud a ti mismo." }, { status: 400 });
           }
 
-          const existingResult = await db.query<{ status: string }>(
-            `
-              SELECT status
-              FROM public.friendships
-              WHERE LEAST(requester_id, addressee_id) = LEAST($1::int, $2::int)
-                AND GREATEST(requester_id, addressee_id) = GREATEST($1::int, $2::int)
-              LIMIT 1
-            `,
-            [userId, addresseeId],
-          );
+          const { data: existingRelation, error: existingError } = await supabase
+            .from("friendships")
+            .select("status")
+            .in("requester_id", [userId, addresseeId])
+            .in("addressee_id", [userId, addresseeId])
+            .limit(1)
+            .maybeSingle();
 
-          if (existingResult.rowCount && existingResult.rows[0]) {
-            const currentStatus = existingResult.rows[0].status;
+          if (existingError) {
+            throw existingError;
+          }
+
+          if (existingRelation) {
+            const currentStatus = existingRelation.status;
 
             if (currentStatus === "accepted") {
               return Response.json({ message: "Ya son amigos." }, { status: 409 });
@@ -106,19 +103,21 @@ export const Route = createFileRoute("/api/friends/request")({
             );
           }
 
-          await db.query(
-            `
-              INSERT INTO public.friendships (requester_id, addressee_id, status)
-              VALUES ($1::int, $2::int, 'pending')
-            `,
-            [userId, addresseeId],
-          );
+          const { error: insertError } = await supabase.from("friendships").insert({
+            requester_id: userId,
+            addressee_id: addresseeId,
+            status: "pending",
+          });
+
+          if (insertError) {
+            throw insertError;
+          }
 
           return Response.json({ message: "Solicitud enviada correctamente." }, { status: 201 });
         } catch (error) {
-          if (error instanceof Error && error.message.includes("DATABASE_URL is not configured")) {
+          if (isSupabaseEnvError(error)) {
             return Response.json(
-              { message: "Falta configurar DATABASE_URL en el archivo .env del proyecto." },
+              { message: "Falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en el archivo .env." },
               { status: 500 },
             );
           }

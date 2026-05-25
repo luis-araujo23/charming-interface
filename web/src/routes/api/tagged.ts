@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { parseCookies, SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth-session";
-import { getDbPool } from "@/lib/db";
+import { getSupabaseAdmin, isSupabaseEnvError } from "@/lib/supabase";
 
 function getSessionUserId(request: Request) {
   const cookies = parseCookies(request.headers.get("cookie"));
@@ -34,37 +34,53 @@ export const Route = createFileRoute("/api/tagged")({
         }
 
         try {
-          const db = getDbPool();
-          const taggedEntriesResult = await db.query<{
-            entry_tag_id: string | number;
-            entry_id: string | number;
-            title: string | null;
-            content: string;
-            entry_date: string;
-            tagged_by_username: string;
-            created_at: string;
-          }>(
-            `
-              SELECT
-                et.id AS entry_tag_id,
-                de.id AS entry_id,
-                de.title,
-                de.content,
-                de.entry_date,
-                tagger.username AS tagged_by_username,
-                et.created_at
-              FROM public.entry_tags et
-              INNER JOIN public.diary_entries de ON de.id = et.entry_id
-              INNER JOIN public.users tagger ON tagger.id = et.tagged_by_user_id
-              WHERE et.tagged_user_id = $1::int
-              ORDER BY et.created_at DESC
-            `,
-            [userId],
-          );
+          const supabase = getSupabaseAdmin();
+          const { data: entryTags, error: tagsError } = await supabase
+            .from("entry_tags")
+            .select("id, entry_id, tagged_by_user_id, created_at")
+            .eq("tagged_user_id", userId)
+            .order("created_at", { ascending: false });
 
-          const entryTagIds = taggedEntriesResult.rows
-            .map((row) => Number(row.entry_tag_id))
+          if (tagsError) {
+            throw tagsError;
+          }
+
+          const entryTagIds = (entryTags ?? [])
+            .map((row) => Number(row.id))
             .filter((id) => Number.isInteger(id) && id > 0);
+
+          const entryIds = [...new Set((entryTags ?? []).map((row) => Number(row.entry_id)))];
+          const taggerIds = [...new Set((entryTags ?? []).map((row) => Number(row.tagged_by_user_id)))];
+
+          let entriesById = new Map<number, { id: number; title: string | null; content: string; entry_date: string }>();
+          if (entryIds.length > 0) {
+            const { data: entries, error: entriesError } = await supabase
+              .from("diary_entries")
+              .select("id, title, content, entry_date")
+              .in("id", entryIds);
+
+            if (entriesError) {
+              throw entriesError;
+            }
+
+            entriesById = new Map(
+              (entries ?? []).map((row) => [Number(row.id), { id: Number(row.id), title: row.title, content: row.content, entry_date: row.entry_date }]),
+            );
+          }
+
+          let usernamesById = new Map<number, string>();
+          if (taggerIds.length > 0) {
+            const { data: users, error: usersError } = await supabase
+              .from("users")
+              .select("id, username")
+              .in("id", taggerIds);
+
+            if (usersError) {
+              throw usersError;
+            }
+
+            usernamesById = new Map((users ?? []).map((row) => [Number(row.id), row.username]));
+          }
 
           const commentsByEntryTagId = new Map<
             number,
@@ -79,38 +95,35 @@ export const Route = createFileRoute("/api/tagged")({
           >();
 
           if (entryTagIds.length > 0) {
-            const commentsResult = await db.query<{
-              id: string | number;
-              entry_tag_id: string | number;
-              author_id: string | number;
-              author_username: string;
-              message: string;
-              created_at: string;
-            }>(
-              `
-                SELECT
-                  tem.id,
-                  tem.entry_tag_id,
-                  tem.author_id,
-                  author.username AS author_username,
-                  tem.message,
-                  tem.created_at
-                FROM public.tagged_entry_messages tem
-                INNER JOIN public.users author ON author.id = tem.author_id
-                WHERE tem.entry_tag_id = ANY($1::int[])
-                ORDER BY tem.created_at ASC
-              `,
-              [entryTagIds],
-            );
+            const { data: comments, error: commentsError } = await supabase
+              .from("tagged_entry_messages")
+              .select("id, entry_tag_id, author_id, message, created_at")
+              .in("entry_tag_id", entryTagIds)
+              .order("created_at", { ascending: true });
 
-            for (const row of commentsResult.rows) {
+            if (commentsError) {
+              throw commentsError;
+            }
+
+            const authorIds = [...new Set((comments ?? []).map((row) => Number(row.author_id)))];
+            const { data: authors, error: authorsError } = authorIds.length > 0
+              ? await supabase.from("users").select("id, username").in("id", authorIds)
+              : { data: [], error: null };
+
+            if (authorsError) {
+              throw authorsError;
+            }
+
+            const authorUsernameById = new Map((authors ?? []).map((row) => [Number(row.id), row.username]));
+
+            for (const row of comments ?? []) {
               const entryTagId = Number(row.entry_tag_id);
               const current = commentsByEntryTagId.get(entryTagId) ?? [];
               current.push({
                 id: Number(row.id),
                 entryTagId,
                 authorId: Number(row.author_id),
-                authorUsername: row.author_username,
+                authorUsername: authorUsernameById.get(Number(row.author_id)) ?? "",
                 message: row.message,
                 createdAt: row.created_at,
               });
@@ -120,15 +133,16 @@ export const Route = createFileRoute("/api/tagged")({
 
           return Response.json(
             {
-              notes: taggedEntriesResult.rows.map((row) => {
-                const entryTagId = Number(row.entry_tag_id);
+              notes: (entryTags ?? []).map((row) => {
+                const entryTagId = Number(row.id);
+                const entry = entriesById.get(Number(row.entry_id));
                 return {
                   entryTagId,
                   entryId: Number(row.entry_id),
-                  title: row.title,
-                  content: row.content,
-                  entryDate: row.entry_date,
-                  taggedByUsername: row.tagged_by_username,
+                  title: entry?.title ?? null,
+                  content: entry?.content ?? "",
+                  entryDate: entry?.entry_date ?? "",
+                  taggedByUsername: usernamesById.get(Number(row.tagged_by_user_id)) ?? "",
                   taggedAt: row.created_at,
                   comments: commentsByEntryTagId.get(entryTagId) ?? [],
                 };
@@ -137,9 +151,9 @@ export const Route = createFileRoute("/api/tagged")({
             { status: 200 },
           );
         } catch (error) {
-          if (error instanceof Error && error.message.includes("DATABASE_URL is not configured")) {
+          if (isSupabaseEnvError(error)) {
             return Response.json(
-              { message: "Falta configurar DATABASE_URL en el archivo .env del proyecto." },
+              { message: "Falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en el archivo .env." },
               { status: 500 },
             );
           }

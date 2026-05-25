@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { parseCookies, SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth-session";
-import { getDbPool } from "@/lib/db";
+import { getSupabaseAdmin, isSupabaseEnvError } from "@/lib/supabase";
 
 type CreateTaggedMessagePayload = {
   entryTagId?: unknown;
@@ -62,69 +62,67 @@ export const Route = createFileRoute("/api/tagged/messages")({
         }
 
         try {
-          const db = getDbPool();
+          const supabase = getSupabaseAdmin();
 
-          const relationResult = await db.query<{ id: string | number }>(
-            `
-              SELECT id
-              FROM public.entry_tags
-              WHERE id = $1::int
-                AND (tagged_user_id = $2::int OR tagged_by_user_id = $2::int)
-              LIMIT 1
-            `,
-            [entryTagId, userId],
-          );
+          const { data: relation, error: relationError } = await supabase
+            .from("entry_tags")
+            .select("id")
+            .eq("id", entryTagId)
+            .or(`tagged_user_id.eq.${userId},tagged_by_user_id.eq.${userId}`)
+            .limit(1)
+            .maybeSingle();
 
-          if (relationResult.rowCount === 0) {
+          if (relationError) {
+            throw relationError;
+          }
+
+          if (!relation) {
             return Response.json({ message: "No tienes permisos para comentar esta etiqueta." }, { status: 403 });
           }
 
-          const insertResult = await db.query<{
-            id: string | number;
-            entry_tag_id: string | number;
-            author_id: string | number;
-            author_username: string;
-            message: string;
-            created_at: string;
-          }>(
-            `
-              WITH inserted AS (
-                INSERT INTO public.tagged_entry_messages (entry_tag_id, author_id, message)
-                VALUES ($1::int, $2::int, $3)
-                RETURNING id, entry_tag_id, author_id, message, created_at
-              )
-              SELECT
-                inserted.id,
-                inserted.entry_tag_id,
-                inserted.author_id,
-                u.username AS author_username,
-                inserted.message,
-                inserted.created_at
-              FROM inserted
-              INNER JOIN public.users u ON u.id = inserted.author_id
-            `,
-            [entryTagId, userId, message],
-          );
+          const { data: inserted, error: insertError } = await supabase
+            .from("tagged_entry_messages")
+            .insert({
+              entry_tag_id: entryTagId,
+              author_id: userId,
+              message,
+            })
+            .select("id, entry_tag_id, author_id, message, created_at")
+            .single();
 
-          const row = insertResult.rows[0];
+          if (insertError) {
+            throw insertError;
+          }
+
+          const { data: author, error: authorError } = await supabase
+            .from("users")
+            .select("username")
+            .eq("id", userId)
+            .limit(1)
+            .maybeSingle();
+
+          if (authorError) {
+            throw authorError;
+          }
+
           return Response.json(
             {
               message: "Comentario enviado.",
               comment: {
-                id: Number(row.id),
-                entryTagId: Number(row.entry_tag_id),
-                authorId: Number(row.author_id),
-                authorUsername: row.author_username,
-                message: row.message,
-                createdAt: row.created_at,
+                id: Number(inserted.id),
+                entryTagId: Number(inserted.entry_tag_id),
+                authorId: Number(inserted.author_id),
+                authorUsername: author?.username ?? "",
+                message: inserted.message,
+                createdAt: inserted.created_at,
               },
             },
             { status: 201 },
           );
         } catch (error) {
-          if (error instanceof Error && error.message.includes("DATABASE_URL is not configured")) {
+          if (isSupabaseEnvError(error)) {
             return Response.json(
-              { message: "Falta configurar DATABASE_URL en el archivo .env del proyecto." },
+              { message: "Falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en el archivo .env." },
               { status: 500 },
             );
           }

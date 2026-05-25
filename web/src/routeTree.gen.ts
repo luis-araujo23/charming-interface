@@ -15,6 +15,7 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiTaggedRouteImport } from './routes/api/tagged'
 import { Route as ApiStreaksRouteImport } from './routes/api/streaks'
+import { Route as ApiMemoriesRouteImport } from './routes/api/memories'
 import { Route as ApiFriendsRouteImport } from './routes/api/friends'
 import { Route as ApiDiaryRouteImport } from './routes/api/diary'
 import { Route as AppTaggedRouteImport } from './routes/_app.tagged'
@@ -65,6 +66,11 @@ const ApiTaggedRoute = ApiTaggedRouteImport.update({
 const ApiStreaksRoute = ApiStreaksRouteImport.update({
   id: '/api/streaks',
   path: '/api/streaks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMemoriesRoute = ApiMemoriesRouteImport.update({
+  id: '/api/memories',
+  path: '/api/memories',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiFriendsRoute = ApiFriendsRouteImport.update({
@@ -191,6 +197,7 @@ export interface FileRoutesByFullPath {
   '/tagged': typeof AppTaggedRoute
   '/api/diary': typeof ApiDiaryRouteWithChildren
   '/api/friends': typeof ApiFriendsRouteWithChildren
+  '/api/memories': typeof ApiMemoriesRoute
   '/api/streaks': typeof ApiStreaksRoute
   '/api/tagged': typeof ApiTaggedRouteWithChildren
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -220,6 +227,7 @@ export interface FileRoutesByTo {
   '/tagged': typeof AppTaggedRoute
   '/api/diary': typeof ApiDiaryRouteWithChildren
   '/api/friends': typeof ApiFriendsRouteWithChildren
+  '/api/memories': typeof ApiMemoriesRoute
   '/api/streaks': typeof ApiStreaksRoute
   '/api/tagged': typeof ApiTaggedRouteWithChildren
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -251,6 +259,7 @@ export interface FileRoutesById {
   '/_app/tagged': typeof AppTaggedRoute
   '/api/diary': typeof ApiDiaryRouteWithChildren
   '/api/friends': typeof ApiFriendsRouteWithChildren
+  '/api/memories': typeof ApiMemoriesRoute
   '/api/streaks': typeof ApiStreaksRoute
   '/api/tagged': typeof ApiTaggedRouteWithChildren
   '/api/auth/login': typeof ApiAuthLoginRoute
@@ -282,6 +291,7 @@ export interface FileRouteTypes {
     | '/tagged'
     | '/api/diary'
     | '/api/friends'
+    | '/api/memories'
     | '/api/streaks'
     | '/api/tagged'
     | '/api/auth/login'
@@ -311,6 +321,7 @@ export interface FileRouteTypes {
     | '/tagged'
     | '/api/diary'
     | '/api/friends'
+    | '/api/memories'
     | '/api/streaks'
     | '/api/tagged'
     | '/api/auth/login'
@@ -341,6 +352,7 @@ export interface FileRouteTypes {
     | '/_app/tagged'
     | '/api/diary'
     | '/api/friends'
+    | '/api/memories'
     | '/api/streaks'
     | '/api/tagged'
     | '/api/auth/login'
@@ -365,6 +377,7 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   ApiDiaryRoute: typeof ApiDiaryRouteWithChildren
   ApiFriendsRoute: typeof ApiFriendsRouteWithChildren
+  ApiMemoriesRoute: typeof ApiMemoriesRoute
   ApiStreaksRoute: typeof ApiStreaksRoute
   ApiTaggedRoute: typeof ApiTaggedRouteWithChildren
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
@@ -415,6 +428,13 @@ declare module '@tanstack/react-router' {
       path: '/api/streaks'
       fullPath: '/api/streaks'
       preLoaderRoute: typeof ApiStreaksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/memories': {
+      id: '/api/memories'
+      path: '/api/memories'
+      fullPath: '/api/memories'
+      preLoaderRoute: typeof ApiMemoriesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/friends': {
@@ -651,6 +671,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   ApiDiaryRoute: ApiDiaryRouteWithChildren,
   ApiFriendsRoute: ApiFriendsRouteWithChildren,
+  ApiMemoriesRoute: ApiMemoriesRoute,
   ApiStreaksRoute: ApiStreaksRoute,
   ApiTaggedRoute: ApiTaggedRouteWithChildren,
   ApiAuthLoginRoute: ApiAuthLoginRoute,
