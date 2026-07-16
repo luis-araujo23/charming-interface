@@ -33,6 +33,7 @@ export const Route = createFileRoute("/api/auth/login")({
             .from("users")
             .select("id, username, email, password_hash")
             .ilike("email", email)
+            .order("id", { ascending: true })
             .limit(1)
             .maybeSingle();
 

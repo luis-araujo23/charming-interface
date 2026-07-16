@@ -18,24 +18,57 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
 
+  String _mapRegisterError(Object error) {
+    final message = error.toString().toLowerCase();
+    if (message.contains('user already registered') || message.contains('ya existe')) {
+      return 'Ese usuario o correo ya esta registrado.';
+    }
+    if (message.contains('password should be at least') || message.contains('al menos')) {
+      return 'La contrasena es demasiado corta (minimo 8 caracteres).';
+    }
+    if (message.contains('socketexception') ||
+        message.contains('connection') ||
+        message.contains('failed host lookup')) {
+      return 'No se pudo conectar con el servidor. Verifica que el servidor web este activo.';
+    }
+
+    return 'No se pudo crear la cuenta. Intenta nuevamente.';
+  }
+
   Future<void> _register() async {
+    final username = _usernameController.text.trim();
+    final email = _emailController.text.trim().toLowerCase();
+    final password = _passwordController.text.trim();
+
+    if (username.isEmpty || email.isEmpty || password.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Completa usuario, correo y contrasena.'), backgroundColor: AppTheme.error),
+        );
+      }
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
       await ref.read(authRepositoryProvider).signUp(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-        username: _usernameController.text.trim(),
+        email: email,
+        password: password,
+        username: username,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cuenta creada con éxito. Inicia sesión.'), backgroundColor: AppTheme.olive),
+          const SnackBar(
+            content: Text('Cuenta creada con exito. Ya puedes iniciar sesion.'),
+            backgroundColor: AppTheme.olive,
+          ),
         );
         context.go('/login');
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error),
+          SnackBar(content: Text(_mapRegisterError(e)), backgroundColor: AppTheme.error),
         );
       }
     } finally {

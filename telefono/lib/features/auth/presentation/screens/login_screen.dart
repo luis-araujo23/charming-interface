@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
 import 'package:telefono/core/theme/app_theme.dart';
 import 'package:telefono/core/widgets/paper_card.dart';
 import 'package:telefono/features/auth/data/repositories/auth_repository.dart';
+import 'package:telefono/features/diary/data/repositories/diary_repository.dart';
+import 'package:telefono/features/friends/data/friends_providers.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -17,22 +21,114 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
 
+  bool _isSendingReset = false;
+
+  String _mapLoginError(Object error) {
+    final message = error.toString().toLowerCase();
+    if (message.contains('invalid login credentials')) {
+      return 'Correo o contrasena incorrectos.';
+    }
+    if (message.contains('email not confirmed') || message.contains('email_not_confirmed')) {
+      return 'No se pudo validar la cuenta. Verifica que el servidor web este activo e intenta de nuevo.';
+    }
+    if (message.contains('socketexception') ||
+        message.contains('connection') ||
+        message.contains('failed host lookup')) {
+      return 'No se pudo conectar con el servidor. Verifica que el servidor web este activo.';
+    }
+
+    return 'No se pudo iniciar sesion. Intenta nuevamente.';
+  }
+
   Future<void> _login() async {
+    final email = _emailController.text.trim().toLowerCase();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Completa correo y contrasena.'), backgroundColor: AppTheme.error),
+        );
+      }
+      return;
+    }
+
     setState(() => _isLoading = true);
     try {
+      // Quick pre-check: if a users row exists but has no password_hash,
+      // the account likely does not have an email/password credential set.
+      try {
+        final profile = await Supabase.instance.client
+            .from('users')
+            .select('password_hash')
+            .eq('email', email)
+            .maybeSingle();
+
+        if (profile != null && (profile['password_hash'] == null || profile['password_hash'] == '')) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Esta cuenta no tiene contraseña establecida. Usa "Recuperar contraseña" o regístrate de nuevo.'),
+                backgroundColor: AppTheme.error,
+              ),
+            );
+          }
+          return;
+        }
+      } catch (_) {
+        // If the check fails, continue and let signIn show the real error.
+      }
+
       await ref.read(authRepositoryProvider).signIn(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+        email: email,
+        password: password,
       );
+      // Descarta cualquier dato cacheado de una sesion anterior para que el
+      // diario/amigos se recarguen para ESTA cuenta.
+      ref.invalidate(diaryEntriesProvider);
+      ref.invalidate(pendingFriendRequestsCountProvider);
+      ref.invalidate(acceptedFriendsProvider);
       if (mounted) context.go('/diary');
     } catch (e) {
       if (mounted) {
+        final msg = _mapLoginError(e);
+        final debugSuffix = kDebugMode ? '\n(${e.toString()})' : '';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error),
+          SnackBar(content: Text('$msg$debugSuffix'), backgroundColor: AppTheme.error),
         );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _sendPasswordReset() async {
+    final email = _emailController.text.trim().toLowerCase();
+    if (email.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ingresa tu correo para enviar el enlace de restablecimiento.'), backgroundColor: AppTheme.error),
+        );
+      }
+      return;
+    }
+
+    setState(() => _isSendingReset = true);
+    try {
+      await ref.read(authRepositoryProvider).sendPasswordResetEmail(email: email);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Correo de restablecimiento enviado. Revisa tu bandeja.'), backgroundColor: AppTheme.olive),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('No se pudo enviar el correo: $e'), backgroundColor: AppTheme.error),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSendingReset = false);
     }
   }
 
@@ -102,6 +198,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           child: _isLoading 
                             ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                             : const Text('Entrar'),
+                        ),
+                        const SizedBox(height: 8),
+                        TextButton(
+                          onPressed: _isSendingReset ? null : _sendPasswordReset,
+                          child: _isSendingReset ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('¿Olvidaste tu contraseña?'),
                         ),
                         const SizedBox(height: 16),
                         TextButton(

@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/layout/PageHeader";
 
 export const Route = createFileRoute("/_app/memories")({
@@ -45,36 +45,61 @@ function MemoriesPage() {
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const featuredMemory = useMemo(() => memories[0] ?? null, [memories]);
   const otherMemories = useMemo(() => memories.slice(1), [memories]);
 
-  useEffect(() => {
-    const loadMemories = async () => {
-      setLoading(true);
-      setErrorMessage(null);
+  const loadMemories = async () => {
+    setLoading(true);
+    setErrorMessage(null);
 
-      try {
-        const response = await fetch("/api/memories");
-        const data = (await response.json().catch(() => ({}))) as MemoriesApiResponse;
+    try {
+      const response = await fetch("/api/memories");
+      const data = (await response.json().catch(() => ({}))) as MemoriesApiResponse;
 
-        if (!response.ok) {
-          setErrorMessage(data.message ?? "No se pudieron cargar tus recuerdos.");
-          setMemories([]);
-          return;
-        }
-
-        setMemories(data.memories ?? []);
-      } catch {
-        setErrorMessage("No se pudieron cargar tus recuerdos.");
+      if (!response.ok) {
+        setErrorMessage(data.message ?? "No se pudieron cargar tus recuerdos.");
         setMemories([]);
-      } finally {
-        setLoading(false);
+        return;
       }
-    };
 
+      setMemories(data.memories ?? []);
+    } catch {
+      setErrorMessage("No se pudieron cargar tus recuerdos.");
+      setMemories([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     void loadMemories();
   }, []);
+
+  const deleteMemory = async (memoryId: number) => {
+    const confirmed = window.confirm("¿Seguro que quieres eliminar este recuerdo? Esta acción no se puede deshacer.");
+    if (!confirmed) {
+      return;
+    }
+
+    setDeletingId(memoryId);
+    try {
+      const response = await fetch(`/api/memories?id=${memoryId}`, { method: "DELETE" });
+      const data = (await response.json().catch(() => ({}))) as { message?: string };
+
+      if (!response.ok) {
+        setErrorMessage(data.message ?? "No se pudo eliminar el recuerdo.");
+        return;
+      }
+
+      setMemories((current) => current.filter((memory) => memory.id !== memoryId));
+    } catch {
+      setErrorMessage("No se pudo eliminar el recuerdo.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -110,8 +135,22 @@ function MemoriesPage() {
         >
           <div className="absolute right-0 top-0 h-40 w-40 rounded-full bg-mint/30 blur-3xl" />
           <div className="relative">
-            <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-accent/60 px-3 py-1 text-xs font-medium uppercase tracking-wider text-accent-foreground">
-              <Sparkles className="h-3 w-3" /> Recuerdo destacado
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div className="inline-flex items-center gap-2 rounded-full bg-accent/60 px-3 py-1 text-xs font-medium uppercase tracking-wider text-accent-foreground">
+                <Sparkles className="h-3 w-3" /> Recuerdo destacado
+              </div>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void deleteMemory(featuredMemory.id);
+                }}
+                disabled={deletingId === featuredMemory.id}
+                className="rounded-full p-2 text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
+                title="Eliminar recuerdo"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
             </div>
             <p className="font-hand text-lg text-olive-deep">{formatDate(featuredMemory.entryDate)}</p>
             <h2 className="mt-2 font-display text-3xl md:text-4xl">{featuredMemory.entryTitle}</h2>
@@ -143,7 +182,21 @@ function MemoriesPage() {
               >
                 <div className="mb-2 flex items-center justify-between gap-3 text-xs uppercase tracking-wider text-muted-foreground">
                   <span>{formatDate(memory.entryDate)}</span>
-                  <span>Entrada #{memory.entryId}</span>
+                  <div className="flex items-center gap-2">
+                    <span>Entrada #{memory.entryId}</span>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void deleteMemory(memory.id);
+                      }}
+                      disabled={deletingId === memory.id}
+                      className="rounded-full p-1.5 text-destructive transition-colors hover:bg-destructive/10 disabled:opacity-50"
+                      title="Eliminar recuerdo"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
                 <h4 className="font-medium">{memory.entryTitle}</h4>
                 <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">{memory.selectedText}</p>

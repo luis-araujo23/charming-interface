@@ -23,6 +23,12 @@ type FriendUser = {
   username: string;
 };
 
+type UserSuggestion = {
+  userId: number;
+  username: string;
+  email: string | null;
+};
+
 type FriendsApiResponse = {
   message?: string;
   pendingRequests?: PendingRequest[];
@@ -55,6 +61,9 @@ function FriendsPage() {
   const [outgoingPendingRequests, setOutgoingPendingRequests] = useState<PendingRequest[]>([]);
   const [friends, setFriends] = useState<FriendUser[]>([]);
   const [usernameQuery, setUsernameQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<UserSuggestion[]>([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [sending, setSending] = useState(false);
   const [respondingId, setRespondingId] = useState<number | null>(null);
   const [cancelingRequestId, setCancelingRequestId] = useState<number | null>(null);
@@ -92,18 +101,47 @@ function FriendsPage() {
     void loadFriendsData();
   }, []);
 
-  const handleSendRequest = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  // Autocompletado: busca usuarios por username mientras se escribe (debounced).
+  useEffect(() => {
+    const query = usernameQuery.trim();
+    if (query.length < 2) {
+      setSuggestions([]);
+      setSearchingUsers(false);
+      return;
+    }
+
+    setSearchingUsers(true);
+    const handle = window.setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/friends/search?q=${encodeURIComponent(query)}`);
+        const data = (await response.json().catch(() => ({}))) as { results?: UserSuggestion[] };
+        if (response.ok && Array.isArray(data.results)) {
+          setSuggestions(data.results);
+        } else {
+          setSuggestions([]);
+        }
+      } catch {
+        setSuggestions([]);
+      } finally {
+        setSearchingUsers(false);
+      }
+    }, 300);
+
+    return () => window.clearTimeout(handle);
+  }, [usernameQuery]);
+
+  const sendRequest = async (rawUsername: string) => {
     setRequestError(null);
     setRequestSuccess(null);
 
-    const username = usernameQuery.trim();
+    const username = rawUsername.trim();
     if (!username) {
       setRequestError("Escribe un username para enviar la solicitud.");
       return;
     }
 
     setSending(true);
+    setShowSuggestions(false);
 
     try {
       const response = await fetch("/api/friends/request", {
@@ -123,6 +161,7 @@ function FriendsPage() {
 
       setRequestSuccess(data.message ?? "Solicitud enviada correctamente.");
       setUsernameQuery("");
+      setSuggestions([]);
       await loadFriendsData();
       window.dispatchEvent(new Event("friends:changed"));
     } catch {
@@ -130,6 +169,11 @@ function FriendsPage() {
     } finally {
       setSending(false);
     }
+  };
+
+  const handleSendRequest = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void sendRequest(usernameQuery);
   };
 
   const handleRespond = async (friendshipId: number, action: "accept" | "reject") => {
@@ -235,14 +279,19 @@ function FriendsPage() {
     <div className="mx-auto max-w-5xl">
       <PageHeader title="Amigos" subtitle="Las personas con las que compartes tu diario" />
 
-      <form className="mb-10 space-y-2" onSubmit={handleSendRequest}>
+      <form className="mb-10 space-y-2" onSubmit={handleSendRequest} autoComplete="off">
         <div className="relative">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Escribe el username para enviar solicitud…"
             className="h-12 rounded-2xl border-border bg-cream/60 pl-11 pr-32"
             value={usernameQuery}
-            onChange={(event) => setUsernameQuery(event.target.value)}
+            onChange={(event) => {
+              setUsernameQuery(event.target.value);
+              setShowSuggestions(true);
+            }}
+            onFocus={() => setShowSuggestions(true)}
+            onBlur={() => window.setTimeout(() => setShowSuggestions(false), 150)}
             maxLength={80}
           />
           <Button
@@ -252,6 +301,39 @@ function FriendsPage() {
           >
             {sending ? "Enviando..." : "Enviar"}
           </Button>
+
+          {showSuggestions && usernameQuery.trim().length >= 2 && (
+            <div className="absolute left-0 right-0 top-14 z-20 overflow-hidden rounded-2xl border border-border bg-card shadow-lg">
+              {searchingUsers && suggestions.length === 0 ? (
+                <p className="px-4 py-3 text-sm text-muted-foreground">Buscando…</p>
+              ) : suggestions.length === 0 ? (
+                <p className="px-4 py-3 text-sm text-muted-foreground">Sin coincidencias.</p>
+              ) : (
+                <ul className="max-h-72 overflow-y-auto py-1">
+                  {suggestions.map((suggestion) => (
+                    <li key={suggestion.userId}>
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-accent/60"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => void sendRequest(suggestion.username)}
+                        disabled={sending}
+                      >
+                        <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-accent font-medium text-accent-foreground">
+                          {suggestion.username.charAt(0).toUpperCase()}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-medium">{suggestion.username}</span>
+                          <span className="block truncate text-xs text-muted-foreground">@{suggestion.username}</span>
+                        </span>
+                        <span className="text-xs font-medium text-primary">Enviar</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
 
         {requestError ? <p className="text-sm text-red-500">{requestError}</p> : null}

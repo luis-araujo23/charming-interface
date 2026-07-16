@@ -36,7 +36,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           .from('users')
           .select('id')
           .eq('auth_id', user.id)
-          .single();
+          .maybeSingle();
+
+      if (userData == null) {
+        setState(() => _results = []);
+        return;
+      }
 
       final response = await Supabase.instance.client
           .from('diary_entries')

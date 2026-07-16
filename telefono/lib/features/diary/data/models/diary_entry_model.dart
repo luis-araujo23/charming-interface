@@ -1,3 +1,37 @@
+class EntryComment {
+  final int? id;
+  final String authorUsername;
+  final String message;
+  final DateTime? createdAt;
+  final String? taggedUserUsername;
+
+  EntryComment({
+    this.id,
+    required this.authorUsername,
+    required this.message,
+    this.createdAt,
+    this.taggedUserUsername,
+  });
+
+  factory EntryComment.fromMap(Map<String, dynamic> map) {
+    DateTime? parsedDate;
+    final rawDate = map['createdAt'] ?? map['created_at'];
+    if (rawDate is String && rawDate.isNotEmpty) {
+      parsedDate = DateTime.tryParse(rawDate);
+    }
+
+    return EntryComment(
+      id: map['id'] is int ? map['id'] as int : (map['comment_id'] as int?),
+      authorUsername:
+          (map['authorUsername'] ?? map['author_username'] ?? '').toString(),
+      message: (map['message'] ?? '').toString(),
+      createdAt: parsedDate,
+      taggedUserUsername:
+          (map['taggedUserUsername'] ?? map['tagged_user_username'])?.toString(),
+    );
+  }
+}
+
 class DiaryEntryModel {
   final int id;
   final int userId;
@@ -9,6 +43,9 @@ class DiaryEntryModel {
   final String? songUrl;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final List<String> photoUrls;
+  final List<String> taggedUsers;
+  final List<EntryComment> comments;
 
   DiaryEntryModel({
     required this.id,
@@ -21,6 +58,9 @@ class DiaryEntryModel {
     this.songUrl,
     required this.createdAt,
     required this.updatedAt,
+    this.photoUrls = const [],
+    this.taggedUsers = const [],
+    this.comments = const [],
   });
 
   factory DiaryEntryModel.fromJson(Map<String, dynamic> json) {
@@ -35,6 +75,28 @@ class DiaryEntryModel {
       songUrl: json['song_url'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String),
       updatedAt: DateTime.parse(json['updated_at'] as String),
+    );
+  }
+
+  DiaryEntryModel copyWith({
+    List<String>? photoUrls,
+    List<String>? taggedUsers,
+    List<EntryComment>? comments,
+  }) {
+    return DiaryEntryModel(
+      id: id,
+      userId: userId,
+      title: title,
+      content: content,
+      entryDate: entryDate,
+      songTitle: songTitle,
+      songArtist: songArtist,
+      songUrl: songUrl,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      photoUrls: photoUrls ?? this.photoUrls,
+      taggedUsers: taggedUsers ?? this.taggedUsers,
+      comments: comments ?? this.comments,
     );
   }
 

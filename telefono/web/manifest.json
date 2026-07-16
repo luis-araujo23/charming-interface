@@ -1,6 +1,6 @@
 {
-    "name": "telefono",
-    "short_name": "telefono",
+    "name": "Kitty",
+    "short_name": "Kitty",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

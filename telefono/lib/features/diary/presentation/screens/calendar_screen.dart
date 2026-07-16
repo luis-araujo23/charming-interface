@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:telefono/core/theme/app_theme.dart';
+import 'package:telefono/features/diary/data/models/diary_entry_model.dart';
 import 'package:telefono/features/diary/data/repositories/diary_repository.dart';
 
 class CalendarScreen extends ConsumerStatefulWidget {
@@ -23,10 +26,10 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       appBar: AppBar(title: const Text('Calendario')),
       body: entriesAsync.when(
         data: (entries) {
-          final entriesMap = <DateTime, List>{};
-          for (var entry in entries) {
+          final entriesMap = <DateTime, List<DiaryEntryModel>>{};
+          for (final entry in entries) {
             final date = DateTime(entry.entryDate.year, entry.entryDate.month, entry.entryDate.day);
-            entriesMap[date] = (entriesMap[date] ?? [])..add(entry);
+            entriesMap.putIfAbsent(date, () => []).add(entry);
           }
 
           return Column(
@@ -68,7 +71,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
               const Divider(),
               if (_selectedDay != null)
                 Expanded(
-                  child: _buildDayEntries(entriesMap[DateTime(_selectedDay!.year, _selectedDay!.month, _selectedDay!.day)] ?? []),
+                  child: _buildDayEntries(
+                    entriesMap[DateTime(_selectedDay!.year, _selectedDay!.month, _selectedDay!.day)] ?? [],
+                  ),
                 ),
             ],
           );
@@ -79,20 +84,30 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     );
   }
 
-  Widget _buildDayEntries(List entries) {
+  void _openEntryInDiary(DiaryEntryModel entry) {
+    context.go('/diary?entryId=${entry.id}');
+  }
+
+  Widget _buildDayEntries(List<DiaryEntryModel> entries) {
     if (entries.isEmpty) {
       return const Center(child: Text('No hay entradas para este día'));
     }
+
     return ListView.builder(
       itemCount: entries.length,
       itemBuilder: (context, index) {
         final entry = entries[index];
+        final title = entry.title?.trim().isNotEmpty == true
+            ? entry.title!.trim()
+            : 'Sin título';
         return ListTile(
-          title: Text(entry.title ?? 'Sin título', style: const TextStyle(fontFamily: 'Fraunces')),
-          subtitle: Text(entry.content, maxLines: 1, overflow: TextOverflow.ellipsis),
-          onTap: () {
-            // Ir a detalle
-          },
+          leading: const Icon(Icons.book_outlined, color: AppTheme.olive),
+          title: Text(title, style: const TextStyle(fontFamily: 'Fraunces')),
+          subtitle: Text(
+            DateFormat('dd MMM, yyyy').format(entry.entryDate),
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _openEntryInDiary(entry),
         );
       },
     );

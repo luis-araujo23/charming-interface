@@ -446,7 +446,7 @@ function DiaryPage() {
                   <Label htmlFor="diary-content">Contenido</Label>
                   <Textarea
                     id="diary-content"
-                    placeholder="Escribe lo que viviste hoy..."
+                    placeholder="querida kitty..."
                     value={content}
                     onChange={(event) => setContent(event.target.value)}
                     className="min-h-36"

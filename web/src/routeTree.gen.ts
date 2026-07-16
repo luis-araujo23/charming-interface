@@ -27,6 +27,7 @@ import { Route as AppDiaryRouteImport } from './routes/_app.diary'
 import { Route as AppCalendarRouteImport } from './routes/_app.calendar'
 import { Route as ApiTaggedTagRouteImport } from './routes/api/tagged/tag'
 import { Route as ApiTaggedMessagesRouteImport } from './routes/api/tagged/messages'
+import { Route as ApiFriendsSearchRouteImport } from './routes/api/friends/search'
 import { Route as ApiFriendsRespondRouteImport } from './routes/api/friends/respond'
 import { Route as ApiFriendsRequestRouteImport } from './routes/api/friends/request'
 import { Route as ApiFriendsDeleteRouteImport } from './routes/api/friends/delete'
@@ -34,6 +35,7 @@ import { Route as ApiFriendsCancelRouteImport } from './routes/api/friends/cance
 import { Route as ApiDiarySearchRouteImport } from './routes/api/diary/search'
 import { Route as ApiDiaryPhotosRouteImport } from './routes/api/diary/photos'
 import { Route as ApiDiaryCalendarRouteImport } from './routes/api/diary/calendar'
+import { Route as ApiAuthSyncRouteImport } from './routes/api/auth/sync'
 import { Route as ApiAuthSessionRouteImport } from './routes/api/auth/session'
 import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
 import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
@@ -128,6 +130,11 @@ const ApiTaggedMessagesRoute = ApiTaggedMessagesRouteImport.update({
   path: '/messages',
   getParentRoute: () => ApiTaggedRoute,
 } as any)
+const ApiFriendsSearchRoute = ApiFriendsSearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => ApiFriendsRoute,
+} as any)
 const ApiFriendsRespondRoute = ApiFriendsRespondRouteImport.update({
   id: '/respond',
   path: '/respond',
@@ -162,6 +169,11 @@ const ApiDiaryCalendarRoute = ApiDiaryCalendarRouteImport.update({
   id: '/calendar',
   path: '/calendar',
   getParentRoute: () => ApiDiaryRoute,
+} as any)
+const ApiAuthSyncRoute = ApiAuthSyncRouteImport.update({
+  id: '/api/auth/sync',
+  path: '/api/auth/sync',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSessionRoute = ApiAuthSessionRouteImport.update({
   id: '/api/auth/session',
@@ -204,6 +216,7 @@ export interface FileRoutesByFullPath {
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/session': typeof ApiAuthSessionRoute
+  '/api/auth/sync': typeof ApiAuthSyncRoute
   '/api/diary/calendar': typeof ApiDiaryCalendarRoute
   '/api/diary/photos': typeof ApiDiaryPhotosRoute
   '/api/diary/search': typeof ApiDiarySearchRoute
@@ -211,6 +224,7 @@ export interface FileRoutesByFullPath {
   '/api/friends/delete': typeof ApiFriendsDeleteRoute
   '/api/friends/request': typeof ApiFriendsRequestRoute
   '/api/friends/respond': typeof ApiFriendsRespondRoute
+  '/api/friends/search': typeof ApiFriendsSearchRoute
   '/api/tagged/messages': typeof ApiTaggedMessagesRoute
   '/api/tagged/tag': typeof ApiTaggedTagRoute
 }
@@ -234,6 +248,7 @@ export interface FileRoutesByTo {
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/session': typeof ApiAuthSessionRoute
+  '/api/auth/sync': typeof ApiAuthSyncRoute
   '/api/diary/calendar': typeof ApiDiaryCalendarRoute
   '/api/diary/photos': typeof ApiDiaryPhotosRoute
   '/api/diary/search': typeof ApiDiarySearchRoute
@@ -241,6 +256,7 @@ export interface FileRoutesByTo {
   '/api/friends/delete': typeof ApiFriendsDeleteRoute
   '/api/friends/request': typeof ApiFriendsRequestRoute
   '/api/friends/respond': typeof ApiFriendsRespondRoute
+  '/api/friends/search': typeof ApiFriendsSearchRoute
   '/api/tagged/messages': typeof ApiTaggedMessagesRoute
   '/api/tagged/tag': typeof ApiTaggedTagRoute
 }
@@ -266,6 +282,7 @@ export interface FileRoutesById {
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/session': typeof ApiAuthSessionRoute
+  '/api/auth/sync': typeof ApiAuthSyncRoute
   '/api/diary/calendar': typeof ApiDiaryCalendarRoute
   '/api/diary/photos': typeof ApiDiaryPhotosRoute
   '/api/diary/search': typeof ApiDiarySearchRoute
@@ -273,6 +290,7 @@ export interface FileRoutesById {
   '/api/friends/delete': typeof ApiFriendsDeleteRoute
   '/api/friends/request': typeof ApiFriendsRequestRoute
   '/api/friends/respond': typeof ApiFriendsRespondRoute
+  '/api/friends/search': typeof ApiFriendsSearchRoute
   '/api/tagged/messages': typeof ApiTaggedMessagesRoute
   '/api/tagged/tag': typeof ApiTaggedTagRoute
 }
@@ -298,6 +316,7 @@ export interface FileRouteTypes {
     | '/api/auth/logout'
     | '/api/auth/register'
     | '/api/auth/session'
+    | '/api/auth/sync'
     | '/api/diary/calendar'
     | '/api/diary/photos'
     | '/api/diary/search'
@@ -305,6 +324,7 @@ export interface FileRouteTypes {
     | '/api/friends/delete'
     | '/api/friends/request'
     | '/api/friends/respond'
+    | '/api/friends/search'
     | '/api/tagged/messages'
     | '/api/tagged/tag'
   fileRoutesByTo: FileRoutesByTo
@@ -328,6 +348,7 @@ export interface FileRouteTypes {
     | '/api/auth/logout'
     | '/api/auth/register'
     | '/api/auth/session'
+    | '/api/auth/sync'
     | '/api/diary/calendar'
     | '/api/diary/photos'
     | '/api/diary/search'
@@ -335,6 +356,7 @@ export interface FileRouteTypes {
     | '/api/friends/delete'
     | '/api/friends/request'
     | '/api/friends/respond'
+    | '/api/friends/search'
     | '/api/tagged/messages'
     | '/api/tagged/tag'
   id:
@@ -359,6 +381,7 @@ export interface FileRouteTypes {
     | '/api/auth/logout'
     | '/api/auth/register'
     | '/api/auth/session'
+    | '/api/auth/sync'
     | '/api/diary/calendar'
     | '/api/diary/photos'
     | '/api/diary/search'
@@ -366,6 +389,7 @@ export interface FileRouteTypes {
     | '/api/friends/delete'
     | '/api/friends/request'
     | '/api/friends/respond'
+    | '/api/friends/search'
     | '/api/tagged/messages'
     | '/api/tagged/tag'
   fileRoutesById: FileRoutesById
@@ -384,6 +408,7 @@ export interface RootRouteChildren {
   ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
   ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
   ApiAuthSessionRoute: typeof ApiAuthSessionRoute
+  ApiAuthSyncRoute: typeof ApiAuthSyncRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -514,6 +539,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiTaggedMessagesRouteImport
       parentRoute: typeof ApiTaggedRoute
     }
+    '/api/friends/search': {
+      id: '/api/friends/search'
+      path: '/search'
+      fullPath: '/api/friends/search'
+      preLoaderRoute: typeof ApiFriendsSearchRouteImport
+      parentRoute: typeof ApiFriendsRoute
+    }
     '/api/friends/respond': {
       id: '/api/friends/respond'
       path: '/respond'
@@ -562,6 +594,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/diary/calendar'
       preLoaderRoute: typeof ApiDiaryCalendarRouteImport
       parentRoute: typeof ApiDiaryRoute
+    }
+    '/api/auth/sync': {
+      id: '/api/auth/sync'
+      path: '/api/auth/sync'
+      fullPath: '/api/auth/sync'
+      preLoaderRoute: typeof ApiAuthSyncRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/auth/session': {
       id: '/api/auth/session'
@@ -637,6 +676,7 @@ interface ApiFriendsRouteChildren {
   ApiFriendsDeleteRoute: typeof ApiFriendsDeleteRoute
   ApiFriendsRequestRoute: typeof ApiFriendsRequestRoute
   ApiFriendsRespondRoute: typeof ApiFriendsRespondRoute
+  ApiFriendsSearchRoute: typeof ApiFriendsSearchRoute
 }
 
 const ApiFriendsRouteChildren: ApiFriendsRouteChildren = {
@@ -644,6 +684,7 @@ const ApiFriendsRouteChildren: ApiFriendsRouteChildren = {
   ApiFriendsDeleteRoute: ApiFriendsDeleteRoute,
   ApiFriendsRequestRoute: ApiFriendsRequestRoute,
   ApiFriendsRespondRoute: ApiFriendsRespondRoute,
+  ApiFriendsSearchRoute: ApiFriendsSearchRoute,
 }
 
 const ApiFriendsRouteWithChildren = ApiFriendsRoute._addFileChildren(
@@ -678,6 +719,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthLogoutRoute: ApiAuthLogoutRoute,
   ApiAuthRegisterRoute: ApiAuthRegisterRoute,
   ApiAuthSessionRoute: ApiAuthSessionRoute,
+  ApiAuthSyncRoute: ApiAuthSyncRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

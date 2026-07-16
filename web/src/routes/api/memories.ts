@@ -211,6 +211,51 @@ export const Route = createFileRoute("/api/memories")({
           return Response.json({ message: "No se pudo guardar el recuerdo." }, { status: 500 });
         }
       },
+
+      DELETE: async ({ request }) => {
+        const userId = getSessionUserId(request);
+
+        if (!userId) {
+          return Response.json({ message: "No autenticado" }, { status: 401 });
+        }
+
+        const url = new URL(request.url);
+        const memoryId = Number(url.searchParams.get("id"));
+
+        if (!Number.isInteger(memoryId) || memoryId <= 0) {
+          return Response.json({ message: "ID de recuerdo inválido." }, { status: 400 });
+        }
+
+        try {
+          const supabase = getSupabaseAdmin();
+          const { data, error } = await supabase
+            .from("remembered_entries")
+            .delete()
+            .eq("id", memoryId)
+            .eq("user_id", userId)
+            .select("id");
+
+          if (error) {
+            throw error;
+          }
+
+          if (!data || data.length === 0) {
+            return Response.json({ message: "No encontramos ese recuerdo." }, { status: 404 });
+          }
+
+          return Response.json({ message: "Recuerdo eliminado." }, { status: 200 });
+        } catch (error) {
+          if (isSupabaseEnvError(error)) {
+            return Response.json(
+              { message: "Falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en el archivo .env." },
+              { status: 500 },
+            );
+          }
+
+          console.error("Memories delete API error", error);
+          return Response.json({ message: "No se pudo eliminar el recuerdo." }, { status: 500 });
+        }
+      },
     },
   },
 });

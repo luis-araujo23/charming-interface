@@ -9,8 +9,8 @@ import 'package:telefono/features/diary/presentation/screens/search_screen.dart'
 import 'package:telefono/features/friends/presentation/screens/friends_screen.dart';
 import 'package:telefono/features/diary/presentation/screens/tagged_screen.dart';
 import 'package:telefono/features/memories/presentation/screens/memories_screen.dart';
+import 'package:telefono/features/streaks/presentation/screens/streaks_screen.dart';
 import 'package:telefono/features/diary/presentation/screens/add_entry_screen.dart';
-import 'package:telefono/features/diary/data/models/diary_entry_model.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -33,10 +33,13 @@ final appRouter = GoRouter(
       path: '/add-entry',
       name: 'add-entry',
       parentNavigatorKey: _rootNavigatorKey,
-      builder: (context, state) {
-        final entry = state.extra as DiaryEntryModel?;
-        return AddEntryScreen(entry: entry);
-      },
+      builder: (context, state) => const AddEntryScreen(),
+    ),
+    GoRoute(
+      path: '/streaks',
+      name: 'streaks',
+      parentNavigatorKey: _rootNavigatorKey,
+      builder: (context, state) => const StreaksScreen(),
     ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {
@@ -48,7 +51,10 @@ final appRouter = GoRouter(
             GoRoute(
               path: '/diary',
               name: 'diary',
-              builder: (context, state) => const DiaryScreen(),
+              builder: (context, state) {
+                final entryId = int.tryParse(state.uri.queryParameters['entryId'] ?? '');
+                return DiaryScreen(initialEntryId: entryId);
+              },
             ),
           ],
         ),

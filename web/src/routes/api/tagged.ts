@@ -52,11 +52,22 @@ export const Route = createFileRoute("/api/tagged")({
           const entryIds = [...new Set((entryTags ?? []).map((row) => Number(row.entry_id)))];
           const taggerIds = [...new Set((entryTags ?? []).map((row) => Number(row.tagged_by_user_id)))];
 
-          let entriesById = new Map<number, { id: number; title: string | null; content: string; entry_date: string }>();
+          type TaggedEntryInfo = {
+            id: number;
+            title: string | null;
+            content: string;
+            entry_date: string;
+            song_title: string | null;
+            song_artist: string | null;
+            song_url: string | null;
+          };
+
+          let entriesById = new Map<number, TaggedEntryInfo>();
+          const photoUrlsByEntryId = new Map<number, string[]>();
           if (entryIds.length > 0) {
             const { data: entries, error: entriesError } = await supabase
               .from("diary_entries")
-              .select("id, title, content, entry_date")
+              .select("id, title, content, entry_date, song_title, song_artist, song_url")
               .in("id", entryIds);
 
             if (entriesError) {
@@ -64,8 +75,40 @@ export const Route = createFileRoute("/api/tagged")({
             }
 
             entriesById = new Map(
-              (entries ?? []).map((row) => [Number(row.id), { id: Number(row.id), title: row.title, content: row.content, entry_date: row.entry_date }]),
+              (entries ?? []).map((row) => [
+                Number(row.id),
+                {
+                  id: Number(row.id),
+                  title: row.title,
+                  content: row.content,
+                  entry_date: row.entry_date,
+                  song_title: row.song_title ?? null,
+                  song_artist: row.song_artist ?? null,
+                  song_url: row.song_url ?? null,
+                },
+              ]),
             );
+
+            const { data: photos, error: photosError } = await supabase
+              .from("entry_photos")
+              .select("entry_id, photo_url, created_at")
+              .in("entry_id", entryIds)
+              .order("created_at", { ascending: true });
+
+            if (photosError) {
+              throw photosError;
+            }
+
+            for (const row of photos ?? []) {
+              const entryId = Number(row.entry_id);
+              const url = typeof row.photo_url === "string" ? row.photo_url : "";
+              if (!url) {
+                continue;
+              }
+              const current = photoUrlsByEntryId.get(entryId) ?? [];
+              current.push(url);
+              photoUrlsByEntryId.set(entryId, current);
+            }
           }
 
           let usernamesById = new Map<number, string>();
@@ -135,13 +178,18 @@ export const Route = createFileRoute("/api/tagged")({
             {
               notes: (entryTags ?? []).map((row) => {
                 const entryTagId = Number(row.id);
-                const entry = entriesById.get(Number(row.entry_id));
+                const entryId = Number(row.entry_id);
+                const entry = entriesById.get(entryId);
                 return {
                   entryTagId,
-                  entryId: Number(row.entry_id),
+                  entryId,
                   title: entry?.title ?? null,
                   content: entry?.content ?? "",
                   entryDate: entry?.entry_date ?? "",
+                  songTitle: entry?.song_title ?? null,
+                  songArtist: entry?.song_artist ?? null,
+                  songUrl: entry?.song_url ?? null,
+                  photoUrls: photoUrlsByEntryId.get(entryId) ?? [],
                   taggedByUsername: usernamesById.get(Number(row.tagged_by_user_id)) ?? "",
                   taggedAt: row.created_at,
                   comments: commentsByEntryTagId.get(entryTagId) ?? [],
