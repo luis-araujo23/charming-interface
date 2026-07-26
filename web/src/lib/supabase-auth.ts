@@ -273,18 +273,33 @@ async function buildEmailConfirmationLink(params: {
   return magic.data.properties.action_link;
 }
 
+function readResendApiKey() {
+  const apiKey = process.env.RESEND_API_KEY?.trim().replace(/^['"]|['"]$/g, "");
+  if (!apiKey) {
+    throw new Error(
+      "Falta RESEND_API_KEY en Vercel. Añádela en Environment Variables y haz Redeploy.",
+    );
+  }
+
+  // A real Resend key looks like re_xxxxxxxx... (much longer than 11 chars).
+  if (!apiKey.startsWith("re_") || apiKey.length < 20) {
+    throw new Error(
+      "RESEND_API_KEY en Vercel parece incompleta o inválida. En resend.com/api-keys crea una key nueva, cópiala completa (empieza por re_) y reemplázala en Vercel. Luego Redeploy.",
+    );
+  }
+
+  return apiKey;
+}
+
 async function sendConfirmationEmailWithResend(params: {
   email: string;
   actionLink: string;
 }) {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
-  if (!apiKey) {
-    throw new Error("Falta RESEND_API_KEY.");
-  }
+  const apiKey = readResendApiKey();
 
   const from =
-    process.env.EMAIL_FROM?.trim() ||
-    process.env.RESEND_FROM?.trim() ||
+    process.env.EMAIL_FROM?.trim().replace(/^['"]|['"]$/g, "") ||
+    process.env.RESEND_FROM?.trim().replace(/^['"]|['"]$/g, "") ||
     "Kitty <onboarding@resend.dev>";
 
   const to = params.email.trim().toLowerCase();
@@ -322,6 +337,17 @@ async function sendConfirmationEmailWithResend(params: {
 
   if (!response.ok) {
     const body = await response.text().catch(() => "");
+    const lower = body.toLowerCase();
+    if (lower.includes("api key is invalid") || response.status === 401) {
+      throw new Error(
+        "Resend rechazó la API key (inválida). En Vercel → Environment Variables reemplaza RESEND_API_KEY con una key nueva completa de resend.com/api-keys y haz Redeploy.",
+      );
+    }
+    if (lower.includes("domain") || lower.includes("from")) {
+      throw new Error(
+        `Resend rechazó el remitente EMAIL_FROM. Usa "Kitty <onboarding@resend.dev>" para pruebas, o un dominio verificado. Detalle: ${body}`,
+      );
+    }
     throw new Error(
       body
         ? `Resend no pudo enviar el correo: ${body}`
@@ -340,12 +366,8 @@ export async function sendSignupConfirmationEmail(params: {
   /** Helps generateLink(type=signup) when available (register / resend). */
   password?: string;
 }) {
-  const resendKey = process.env.RESEND_API_KEY?.trim();
-  if (!resendKey) {
-    throw new Error(
-      "Falta RESEND_API_KEY en Vercel. Sin ella Kitty no puede enviar el correo de verificación. Añádela en Environment Variables y haz Redeploy.",
-    );
-  }
+  // Validate key early so register/resend show a clear error.
+  readResendApiKey();
 
   const actionLink = await buildEmailConfirmationLink({
     email: params.email,
