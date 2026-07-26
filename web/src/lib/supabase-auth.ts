@@ -354,10 +354,16 @@ async function sendConfirmationEmailWithResend(params: {
   actionLink: string;
   apiKey: string;
 }) {
+  // Resend rejects arbitrary Gmail "from" addresses unless the domain is verified.
+  // Use onboarding@resend.dev unless EMAIL_FROM is clearly a custom domain.
+  const configuredFrom =
+    stripEnvQuotes(process.env.EMAIL_FROM) || stripEnvQuotes(process.env.RESEND_FROM);
   const from =
-    stripEnvQuotes(process.env.EMAIL_FROM) ||
-    stripEnvQuotes(process.env.RESEND_FROM) ||
-    "Kitty <onboarding@resend.dev>";
+    configuredFrom &&
+    !configuredFrom.toLowerCase().includes("@gmail.com") &&
+    !configuredFrom.toLowerCase().includes("@googlemail.com")
+      ? configuredFrom
+      : "Kitty <onboarding@resend.dev>";
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -429,9 +435,9 @@ async function sendConfirmationEmailWithSmtp(params: {
 /**
  * Sends signup confirmation to ANY email address.
  *
- * Priority:
- * 1) SMTP (Gmail App Password, etc.) — works worldwide without a custom domain
- * 2) Resend — for production scale you MUST verify a domain in Resend
+ * Tries SMTP (Gmail) and Resend; uses the first that works.
+ * On Vercel, SMTP sockets sometimes fail — Resend HTTP is the reliable fallback
+ * (with onboarding@resend.dev it can still reach the Resend account email).
  */
 export async function sendSignupConfirmationEmail(params: {
   email: string;
@@ -445,27 +451,41 @@ export async function sendSignupConfirmationEmail(params: {
     emailRedirectTo: params.emailRedirectTo,
   });
 
-  const smtp = getSmtpConfig();
-  if (smtp) {
-    await sendConfirmationEmailWithSmtp({
-      email: params.email,
-      actionLink,
-    });
-    return;
-  }
+  const errors: string[] = [];
 
+  // 1) Prefer Resend over HTTPS (more reliable on Vercel serverless than SMTP sockets).
   const resendKey = getValidResendApiKey();
   if (resendKey) {
-    await sendConfirmationEmailWithResend({
-      email: params.email,
-      actionLink,
-      apiKey: resendKey,
-    });
-    return;
+    try {
+      await sendConfirmationEmailWithResend({
+        email: params.email,
+        actionLink,
+        apiKey: resendKey,
+      });
+      return;
+    } catch (e) {
+      errors.push(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  // 2) SMTP Gmail (works for any recipient if Vercel can open the socket).
+  try {
+    const smtp = getSmtpConfig();
+    if (smtp) {
+      await sendConfirmationEmailWithSmtp({
+        email: params.email,
+        actionLink,
+      });
+      return;
+    }
+  } catch (e) {
+    errors.push(e instanceof Error ? e.message : String(e));
   }
 
   throw new Error(
-    "No hay proveedor de correo configurado. En Vercel añade SMTP_HOST=smtp.gmail.com, SMTP_PORT=465, SMTP_USER=tu@gmail.com, SMTP_PASS=tu_app_password (contraseña de aplicación de Google), EMAIL_FROM=Kitty <tu@gmail.com> y haz Redeploy. Para escala mundial luego verifica un dominio en Resend.",
+    errors.length
+      ? `No se pudo enviar el correo. Detalles: ${errors.join(" | ")}`
+      : "No hay proveedor de correo configurado (SMTP o RESEND_API_KEY).",
   );
 }
 
