@@ -34,14 +34,17 @@ CHECKLIST DEPLOY VERCEL (web)
    - SUPABASE_SERVICE_ROLE_KEY
    - SUPABASE_ANON_KEY
    - SUPABASE_STORAGE_BUCKET = diary-photos
-   - RESEND_API_KEY        (https://resend.com — sin esto el correo casi nunca llega)
-   - EMAIL_FROM            = Kitty <noreply@tudominio.com>  (despues de verificar dominio)
-3. Resend (correo real):
-   - Crear cuenta en https://resend.com
-   - API Keys → Create → copiar a Vercel como RESEND_API_KEY
-   - Domains → Add domain → poner DNS → esperar verified
-   - EMAIL_FROM = Kitty <noreply@tudominio-verificado.com>
-   - Sin dominio verificado, Resend solo puede enviar a TU propio email de Resend
+   - SMTP_HOST=smtp.gmail.com
+   - SMTP_PORT=465
+   - SMTP_USER=tu@gmail.com
+   - SMTP_PASS=contraseña_de_aplicacion_google (16 chars)
+   - EMAIL_FROM=Kitty <tu@gmail.com>
+3. Correo YA (cualquier destinatario) con Gmail SMTP:
+   - Google → Seguridad → verificacion en 2 pasos ON
+   - Contraseñas de aplicaciones → Mail → copiar la de 16 letras
+   - Pegar en Vercel SMTP_* y Redeploy
+   - Esto SI envia a cualquier Gmail/Outlook/etc (limite ~500/dia)
+   - Mas adelante: dominio propio + Resend para escala mundial
 4. En Supabase → Authentication → Providers → Email:
    - Confirm email = ON
 5. En Supabase → Authentication → URL Configuration:

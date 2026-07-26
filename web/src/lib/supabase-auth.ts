@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import nodemailer from "nodemailer";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
 export function isAuthEmailConfirmed(user: User | null | undefined) {
@@ -273,65 +274,76 @@ async function buildEmailConfirmationLink(params: {
   return magic.data.properties.action_link;
 }
 
-function readResendApiKey() {
-  const apiKey = process.env.RESEND_API_KEY?.trim().replace(/^['"]|['"]$/g, "");
-  if (!apiKey) {
-    throw new Error(
-      "Falta RESEND_API_KEY en Vercel. Añádela en Environment Variables y haz Redeploy.",
-    );
+function stripEnvQuotes(value: string | undefined) {
+  const trimmed = value?.trim() ?? "";
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
   }
-
-  // A real Resend key looks like re_xxxxxxxx... (much longer than 11 chars).
-  if (!apiKey.startsWith("re_") || apiKey.length < 20) {
-    throw new Error(
-      "RESEND_API_KEY en Vercel parece incompleta o inválida. En resend.com/api-keys crea una key nueva, cópiala completa (empieza por re_) y reemplázala en Vercel. Luego Redeploy.",
-    );
-  }
-
-  return apiKey;
+  return trimmed;
 }
 
-async function sendConfirmationEmailWithResend(params: {
-  email: string;
-  actionLink: string;
-}) {
-  const apiKey = readResendApiKey();
-
-  const from =
-    process.env.EMAIL_FROM?.trim().replace(/^['"]|['"]$/g, "") ||
-    process.env.RESEND_FROM?.trim().replace(/^['"]|['"]$/g, "") ||
-    "Kitty <onboarding@resend.dev>";
-
-  const to = params.email.trim().toLowerCase();
-  const html = `
+function buildConfirmationEmailHtml(actionLink: string) {
+  return `
     <div style="font-family: Georgia, serif; max-width: 520px; margin: 0 auto; color: #1f2a1f;">
       <h1 style="font-size: 28px; margin-bottom: 8px;">kitty</h1>
       <p style="font-size: 16px; line-height: 1.5;">Confirma tu correo para activar tu diario.</p>
       <p style="margin: 28px 0;">
-        <a href="${params.actionLink}"
+        <a href="${actionLink}"
            style="display: inline-block; background: #3d4f3a; color: #fff; text-decoration: none; padding: 12px 20px; border-radius: 10px;">
           Verificar mi correo
         </a>
       </p>
       <p style="font-size: 13px; color: #5c6b5c; line-height: 1.5;">
         Si el botón no funciona, copia y pega este enlace en el navegador:<br/>
-        <a href="${params.actionLink}" style="color: #3d4f3a; word-break: break-all;">${params.actionLink}</a>
+        <a href="${actionLink}" style="color: #3d4f3a; word-break: break-all;">${actionLink}</a>
       </p>
       <p style="font-size: 12px; color: #7a8a7a;">Si no creaste una cuenta en Kitty, ignora este mensaje.</p>
     </div>
   `;
+}
+
+function getValidResendApiKey() {
+  const apiKey = stripEnvQuotes(process.env.RESEND_API_KEY);
+  if (!apiKey) return null;
+  if (!apiKey.startsWith("re_") || apiKey.length < 20) return null;
+  return apiKey;
+}
+
+function getSmtpConfig() {
+  const host = stripEnvQuotes(process.env.SMTP_HOST);
+  const user = stripEnvQuotes(process.env.SMTP_USER);
+  const pass = stripEnvQuotes(process.env.SMTP_PASS);
+  const portRaw = stripEnvQuotes(process.env.SMTP_PORT) || "465";
+  const port = Number(portRaw) || 465;
+
+  if (!host || !user || !pass) return null;
+  return { host, user, pass, port, secure: port === 465 };
+}
+
+async function sendConfirmationEmailWithResend(params: {
+  email: string;
+  actionLink: string;
+  apiKey: string;
+}) {
+  const from =
+    stripEnvQuotes(process.env.EMAIL_FROM) ||
+    stripEnvQuotes(process.env.RESEND_FROM) ||
+    "Kitty <onboarding@resend.dev>";
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${params.apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
       from,
-      to: [to],
+      to: [params.email.trim().toLowerCase()],
       subject: "Verifica tu correo en Kitty",
-      html,
+      html: buildConfirmationEmailHtml(params.actionLink),
     }),
   });
 
@@ -340,25 +352,60 @@ async function sendConfirmationEmailWithResend(params: {
     const lower = body.toLowerCase();
     if (lower.includes("api key is invalid") || response.status === 401) {
       throw new Error(
-        "Resend rechazó la API key (inválida). En Vercel → Environment Variables reemplaza RESEND_API_KEY con una key nueva completa de resend.com/api-keys y haz Redeploy.",
+        "Resend rechazó la API key (inválida). Usa SMTP_HOST/SMTP_USER/SMTP_PASS (Gmail) o una key Resend válida + dominio verificado.",
       );
     }
-    if (lower.includes("domain") || lower.includes("from")) {
+    if (
+      lower.includes("domain") ||
+      lower.includes("from") ||
+      lower.includes("not allowed to send") ||
+      lower.includes("only send testing")
+    ) {
       throw new Error(
-        `Resend rechazó el remitente EMAIL_FROM. Usa "Kitty <onboarding@resend.dev>" para pruebas, o un dominio verificado. Detalle: ${body}`,
+        "Resend solo deja enviar a cualquier correo si verificas un dominio. Mientras tanto configura SMTP (Gmail App Password) en Vercel.",
       );
     }
-    throw new Error(
-      body
-        ? `Resend no pudo enviar el correo: ${body}`
-        : `Resend no pudo enviar el correo (HTTP ${response.status}).`,
-    );
+    throw new Error(body ? `Resend no pudo enviar el correo: ${body}` : `Resend error HTTP ${response.status}`);
   }
 }
 
+async function sendConfirmationEmailWithSmtp(params: {
+  email: string;
+  actionLink: string;
+}) {
+  const smtp = getSmtpConfig();
+  if (!smtp) {
+    throw new Error("Falta SMTP_HOST / SMTP_USER / SMTP_PASS.");
+  }
+
+  const from =
+    stripEnvQuotes(process.env.EMAIL_FROM) ||
+    `Kitty <${smtp.user}>`;
+
+  const transporter = nodemailer.createTransport({
+    host: smtp.host,
+    port: smtp.port,
+    secure: smtp.secure,
+    auth: {
+      user: smtp.user,
+      pass: smtp.pass,
+    },
+  });
+
+  await transporter.sendMail({
+    from,
+    to: params.email.trim().toLowerCase(),
+    subject: "Verifica tu correo en Kitty",
+    html: buildConfirmationEmailHtml(params.actionLink),
+  });
+}
+
 /**
- * Sends the signup confirmation email via Resend ONLY.
- * Supabase free SMTP is unreliable and is no longer used as a silent fallback.
+ * Sends signup confirmation to ANY email address.
+ *
+ * Priority:
+ * 1) SMTP (Gmail App Password, etc.) — works worldwide without a custom domain
+ * 2) Resend — for production scale you MUST verify a domain in Resend
  */
 export async function sendSignupConfirmationEmail(params: {
   email: string;
@@ -366,19 +413,34 @@ export async function sendSignupConfirmationEmail(params: {
   /** Helps generateLink(type=signup) when available (register / resend). */
   password?: string;
 }) {
-  // Validate key early so register/resend show a clear error.
-  readResendApiKey();
-
   const actionLink = await buildEmailConfirmationLink({
     email: params.email,
     password: params.password,
     emailRedirectTo: params.emailRedirectTo,
   });
 
-  await sendConfirmationEmailWithResend({
-    email: params.email,
-    actionLink,
-  });
+  const smtp = getSmtpConfig();
+  if (smtp) {
+    await sendConfirmationEmailWithSmtp({
+      email: params.email,
+      actionLink,
+    });
+    return;
+  }
+
+  const resendKey = getValidResendApiKey();
+  if (resendKey) {
+    await sendConfirmationEmailWithResend({
+      email: params.email,
+      actionLink,
+      apiKey: resendKey,
+    });
+    return;
+  }
+
+  throw new Error(
+    "No hay proveedor de correo configurado. En Vercel añade SMTP_HOST=smtp.gmail.com, SMTP_PORT=465, SMTP_USER=tu@gmail.com, SMTP_PASS=tu_app_password (contraseña de aplicación de Google), EMAIL_FROM=Kitty <tu@gmail.com> y haz Redeploy. Para escala mundial luego verifica un dominio en Resend.",
+  );
 }
 
 /** Optional helper if some callers need an anon client later. */
