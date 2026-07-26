@@ -353,7 +353,7 @@ async function sendConfirmationEmailWithResend(params: {
   email: string;
   actionLink: string;
   apiKey: string;
-}) {
+}): Promise<{ provider: "resend"; id: string | null }> {
   // Resend rejects arbitrary Gmail "from" addresses unless the domain is verified.
   // Use onboarding@resend.dev unless EMAIL_FROM is clearly a custom domain.
   const configuredFrom =
@@ -379,8 +379,8 @@ async function sendConfirmationEmailWithResend(params: {
     }),
   });
 
+  const body = await response.text().catch(() => "");
   if (!response.ok) {
-    const body = await response.text().catch(() => "");
     const lower = body.toLowerCase();
     if (lower.includes("api key is invalid") || response.status === 401) {
       throw new Error(
@@ -399,12 +399,20 @@ async function sendConfirmationEmailWithResend(params: {
     }
     throw new Error(body ? `Resend no pudo enviar el correo: ${body}` : `Resend error HTTP ${response.status}`);
   }
+
+  let id: string | null = null;
+  try {
+    id = (JSON.parse(body) as { id?: string }).id ?? null;
+  } catch {
+    id = null;
+  }
+  return { provider: "resend", id };
 }
 
 async function sendConfirmationEmailWithSmtp(params: {
   email: string;
   actionLink: string;
-}) {
+}): Promise<{ provider: "smtp"; messageId: string | null }> {
   const smtp = getSmtpConfig();
   if (!smtp) {
     throw new Error("Falta SMTP_HOST / SMTP_USER / SMTP_PASS.");
@@ -422,29 +430,41 @@ async function sendConfirmationEmailWithSmtp(params: {
       user: smtp.user,
       pass: smtp.pass,
     },
+    connectionTimeout: 12000,
+    greetingTimeout: 12000,
+    socketTimeout: 20000,
   });
 
-  await transporter.sendMail({
+  const info = await transporter.sendMail({
     from,
     to: params.email.trim().toLowerCase(),
     subject: "Verifica tu correo en Kitty",
     html: buildConfirmationEmailHtml(params.actionLink),
   });
+
+  return {
+    provider: "smtp",
+    messageId: typeof info.messageId === "string" ? info.messageId : null,
+  };
 }
+
+export type MailSendResult =
+  | { provider: "smtp"; messageId: string | null }
+  | { provider: "resend"; id: string | null };
 
 /**
  * Sends signup confirmation to ANY email address.
  *
- * Tries SMTP (Gmail) and Resend; uses the first that works.
- * On Vercel, SMTP sockets sometimes fail — Resend HTTP is the reliable fallback
- * (with onboarding@resend.dev it can still reach the Resend account email).
+ * Prefer Gmail SMTP first (works for any recipient worldwide).
+ * Resend is fallback only — without a verified domain it often cannot
+ * deliver to arbitrary Gmail addresses even when the API key is valid.
  */
 export async function sendSignupConfirmationEmail(params: {
   email: string;
   emailRedirectTo: string;
   /** Helps generateLink(type=signup) when available (register / resend). */
   password?: string;
-}) {
+}): Promise<MailSendResult> {
   const actionLink = await buildEmailConfirmationLink({
     email: params.email,
     password: params.password,
@@ -453,33 +473,31 @@ export async function sendSignupConfirmationEmail(params: {
 
   const errors: string[] = [];
 
-  // 1) Prefer Resend over HTTPS (more reliable on Vercel serverless than SMTP sockets).
+  // 1) SMTP Gmail first — verified working on this Vercel project.
+  try {
+    const smtp = getSmtpConfig();
+    if (smtp) {
+      return await sendConfirmationEmailWithSmtp({
+        email: params.email,
+        actionLink,
+      });
+    }
+  } catch (e) {
+    errors.push(e instanceof Error ? e.message : String(e));
+  }
+
+  // 2) Resend HTTP fallback.
   const resendKey = getValidResendApiKey();
   if (resendKey) {
     try {
-      await sendConfirmationEmailWithResend({
+      return await sendConfirmationEmailWithResend({
         email: params.email,
         actionLink,
         apiKey: resendKey,
       });
-      return;
     } catch (e) {
       errors.push(e instanceof Error ? e.message : String(e));
     }
-  }
-
-  // 2) SMTP Gmail (works for any recipient if Vercel can open the socket).
-  try {
-    const smtp = getSmtpConfig();
-    if (smtp) {
-      await sendConfirmationEmailWithSmtp({
-        email: params.email,
-        actionLink,
-      });
-      return;
-    }
-  } catch (e) {
-    errors.push(e instanceof Error ? e.message : String(e));
   }
 
   throw new Error(

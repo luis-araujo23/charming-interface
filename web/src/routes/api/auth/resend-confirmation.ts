@@ -104,16 +104,18 @@ export const Route = createFileRoute("/api/auth/resend-confirmation")({
             );
           }
 
-          await sendSignupConfirmationEmail({
+          const sent = await sendSignupConfirmationEmail({
             email: user.email,
             password,
             emailRedirectTo: resolveEmailRedirectTo(request),
           });
+          console.info("Resend confirmation email via", sent);
 
           return Response.json(
             {
               message: "Te reenviamos el correo de verificación. Revisa tu bandeja (y spam).",
               email: user.email,
+              mailProvider: sent.provider,
             },
             { status: 200 },
           );

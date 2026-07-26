@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import nodemailer from "nodemailer";
+import { getSupabaseAdmin } from "@/lib/supabase";
 
 function strip(value: string | undefined) {
   const trimmed = value?.trim() ?? "";
@@ -15,7 +16,8 @@ function strip(value: string | undefined) {
 /**
  * Public health check for mail config (no secrets).
  * GET /api/auth/mail-health
- * Optional: ?probe=1 also tries SMTP verify + one Resend API ping.
+ * Optional: ?probe=1 SMTP verify + Resend ping
+ * Optional: ?sendSelf=1 also sends a real test email TO SMTP_USER (proves delivery path)
  */
 export const Route = createFileRoute("/api/auth/mail-health")({
   server: {
@@ -28,7 +30,9 @@ export const Route = createFileRoute("/api/auth/mail-health")({
         const from = strip(process.env.EMAIL_FROM);
         const appUrl = strip(process.env.APP_URL);
         const resend = strip(process.env.RESEND_API_KEY);
-        const probe = new URL(request.url).searchParams.get("probe") === "1";
+        const url = new URL(request.url);
+        const probe = url.searchParams.get("probe") === "1";
+        const sendSelf = url.searchParams.get("sendSelf") === "1";
 
         const smtpLooksOk =
           host === "smtp.gmail.com" && user.includes("@") && pass.length >= 16 && Boolean(from);
@@ -37,8 +41,16 @@ export const Route = createFileRoute("/api/auth/mail-health")({
         let smtpVerifyError: string | null = null;
         let resendPing: "skipped" | "ok" | "fail" = "skipped";
         let resendPingError: string | null = null;
+        let smtpSend: "skipped" | "ok" | "fail" = "skipped";
+        let smtpSendError: string | null = null;
+        let smtpMessageId: string | null = null;
+        let resendSend: "skipped" | "ok" | "fail" = "skipped";
+        let resendSendError: string | null = null;
+        let resendId: string | null = null;
+        let generateLink: "skipped" | "ok" | "fail" = "skipped";
+        let generateLinkError: string | null = null;
 
-        if (probe && smtpLooksOk) {
+        if ((probe || sendSelf) && smtpLooksOk) {
           try {
             const transporter = nodemailer.createTransport({
               host,
@@ -51,15 +63,30 @@ export const Route = createFileRoute("/api/auth/mail-health")({
             });
             await transporter.verify();
             smtpVerify = "ok";
+
+            if (sendSelf) {
+              try {
+                const info = await transporter.sendMail({
+                  from: from || `Kitty <${user}>`,
+                  to: user,
+                  subject: `Kitty SMTP self-test ${new Date().toISOString()}`,
+                  html: "<p>Prueba real desde Vercel. Si llega a la bandeja de <b>kitty.diaryapp</b>, SMTP funciona.</p>",
+                });
+                smtpSend = "ok";
+                smtpMessageId = typeof info.messageId === "string" ? info.messageId : null;
+              } catch (e) {
+                smtpSend = "fail";
+                smtpSendError = e instanceof Error ? e.message : String(e);
+              }
+            }
           } catch (e) {
             smtpVerify = "fail";
             smtpVerifyError = e instanceof Error ? e.message : String(e);
           }
         }
 
-        if (probe && resend.startsWith("re_") && resend.length >= 20) {
+        if ((probe || sendSelf) && resend.startsWith("re_") && resend.length >= 20) {
           try {
-            // domains list is a cheap authenticated ping
             const r = await fetch("https://api.resend.com/domains", {
               headers: { Authorization: `Bearer ${resend}` },
             });
@@ -72,6 +99,76 @@ export const Route = createFileRoute("/api/auth/mail-health")({
           } catch (e) {
             resendPing = "fail";
             resendPingError = e instanceof Error ? e.message : String(e);
+          }
+
+          if (sendSelf && user.includes("@")) {
+            try {
+              const r = await fetch("https://api.resend.com/emails", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${resend}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  from: "Kitty <onboarding@resend.dev>",
+                  to: [user],
+                  subject: `Kitty Resend self-test ${new Date().toISOString()}`,
+                  html: "<p>Prueba Resend desde Vercel hacia SMTP_USER.</p>",
+                }),
+              });
+              const bodyText = await r.text().catch(() => "");
+              if (r.ok) {
+                resendSend = "ok";
+                try {
+                  resendId = (JSON.parse(bodyText) as { id?: string }).id ?? null;
+                } catch {
+                  resendId = null;
+                }
+              } else {
+                resendSend = "fail";
+                resendSendError = bodyText.slice(0, 240) || `HTTP ${r.status}`;
+              }
+            } catch (e) {
+              resendSend = "fail";
+              resendSendError = e instanceof Error ? e.message : String(e);
+            }
+          }
+        }
+
+        if (sendSelf) {
+          try {
+            const admin = getSupabaseAdmin();
+            const redirectTo = `${(appUrl || "https://kitty-azure-one.vercel.app").replace(/\/$/, "")}/auth/confirmed`;
+            // Pick any existing Auth user so we test link generation (not invent a fake email).
+            const { data: listed, error: listError } = await admin.auth.admin.listUsers({
+              page: 1,
+              perPage: 5,
+            });
+            if (listError) {
+              generateLink = "fail";
+              generateLinkError = listError.message;
+            } else {
+              const sampleEmail = listed.users.find((u) => u.email)?.email;
+              if (!sampleEmail) {
+                generateLink = "fail";
+                generateLinkError = "no_auth_users";
+              } else {
+                const magic = await admin.auth.admin.generateLink({
+                  type: "magiclink",
+                  email: sampleEmail,
+                  options: { redirectTo },
+                });
+                if (magic.error || !magic.data.properties?.action_link) {
+                  generateLink = "fail";
+                  generateLinkError = magic.error?.message ?? "no action_link";
+                } else {
+                  generateLink = "ok";
+                }
+              }
+            }
+          } catch (e) {
+            generateLink = "fail";
+            generateLinkError = e instanceof Error ? e.message : String(e);
           }
         }
 
@@ -90,17 +187,30 @@ export const Route = createFileRoute("/api/auth/mail-health")({
             fromHasAt: from.includes("@"),
             verify: smtpVerify,
             verifyError: smtpVerifyError,
+            send: smtpSend,
+            sendError: smtpSendError,
+            messageId: smtpMessageId,
           },
           resend: {
             keyPresent: Boolean(resend),
             keyLooksValid: resend.startsWith("re_") && resend.length >= 20,
             ping: resendPing,
             pingError: resendPingError,
+            send: resendSend,
+            sendError: resendSendError,
+            id: resendId,
+          },
+          generateLink: {
+            status: generateLink,
+            error: generateLinkError,
           },
           appUrlIsHttps: appUrl.startsWith("https://"),
           appUrlLooksLocal:
             /localhost|127\.0\.0\.1|192\.168\./i.test(appUrl) || appUrl.length === 0,
-          commitHint: "mail-health-v2-probe",
+          commitHint: "mail-health-v3-sendself",
+          note: sendSelf
+            ? "Revisa la bandeja de kitty.diaryapp@gmail.com (SMTP_USER), no tu correo personal."
+            : undefined,
         };
 
         return Response.json(body, {

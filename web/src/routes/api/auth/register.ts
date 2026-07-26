@@ -189,15 +189,18 @@ export const Route = createFileRoute("/api/auth/register")({
           // 3) Send confirmation email (best-effort). Rate-limit must NOT undo the account.
           let emailSent = true;
           let emailRateLimited = false;
+          let mailProvider: string | null = null;
           let message =
             "Cuenta creada. Te enviamos un correo para verificar tu cuenta. Confírmalo antes de iniciar sesión.";
 
           try {
-            await sendSignupConfirmationEmail({
+            const sent = await sendSignupConfirmationEmail({
               email,
               password,
               emailRedirectTo,
             });
+            mailProvider = sent.provider;
+            console.info("Register email sent via", sent);
           } catch (sendError) {
             if (isEmailSendRateLimitError(sendError)) {
               emailSent = false;
@@ -225,6 +228,7 @@ export const Route = createFileRoute("/api/auth/register")({
               needsEmailConfirmation: true,
               emailSent,
               emailRateLimited,
+              mailProvider,
               email,
               user: {
                 id: createdUser.id,
