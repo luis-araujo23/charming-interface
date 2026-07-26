@@ -25,8 +25,25 @@ function fromBase64Url(value: string) {
   return Buffer.from(value, "base64url").toString("utf8");
 }
 
+function isProduction() {
+  return process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
+}
+
 function getSessionSecret() {
-  return process.env.AUTH_SESSION_SECRET ?? process.env.SESSION_SECRET ?? "dev-auth-secret-change-me";
+  const secret = process.env.AUTH_SESSION_SECRET ?? process.env.SESSION_SECRET;
+
+  if (secret && secret.trim().length >= 32) {
+    return secret.trim();
+  }
+
+  if (isProduction()) {
+    throw new Error(
+      "AUTH_SESSION_SECRET must be set to a random string of at least 32 characters in production.",
+    );
+  }
+
+  // Local dev only — never used on Vercel if AUTH_SESSION_SECRET is configured.
+  return "dev-auth-secret-change-me-local-only";
 }
 
 function sign(encodedPayload: string) {
@@ -92,10 +109,18 @@ export function verifySessionToken(token: string) {
   }
 }
 
+function cookieFlags() {
+  const flags = ["Path=/", "HttpOnly", "SameSite=Lax"];
+  if (isProduction()) {
+    flags.push("Secure");
+  }
+  return flags.join("; ");
+}
+
 export function buildSessionCookie(token: string) {
-  return `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; Max-Age=${SESSION_DURATION_SECONDS}; SameSite=Lax`;
+  return `${SESSION_COOKIE_NAME}=${encodeURIComponent(token)}; Max-Age=${SESSION_DURATION_SECONDS}; ${cookieFlags()}`;
 }
 
 export function buildSessionClearCookie() {
-  return `${SESSION_COOKIE_NAME}=; Path=/; Max-Age=0; SameSite=Lax`;
+  return `${SESSION_COOKIE_NAME}=; Max-Age=0; ${cookieFlags()}`;
 }

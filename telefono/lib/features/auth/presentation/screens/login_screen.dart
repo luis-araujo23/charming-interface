@@ -20,16 +20,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
-
   bool _isSendingReset = false;
+  bool _isResendingConfirmation = false;
+  bool _needsConfirmation = false;
 
   String _mapLoginError(Object error) {
+    if (error is EmailNotConfirmedException) {
+      return error.message;
+    }
     final message = error.toString().toLowerCase();
     if (message.contains('invalid login credentials')) {
       return 'Correo o contrasena incorrectos.';
     }
     if (message.contains('email not confirmed') || message.contains('email_not_confirmed')) {
-      return 'No se pudo validar la cuenta. Verifica que el servidor web este activo e intenta de nuevo.';
+      return 'Debes verificar tu correo antes de iniciar sesion. Revisa tu bandeja (y spam).';
     }
     if (message.contains('socketexception') ||
         message.contains('connection') ||
@@ -37,6 +41,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return 'No se pudo conectar con el servidor. Verifica que el servidor web este activo.';
     }
 
+    final raw = error.toString();
+    if (raw.startsWith('Exception: ')) {
+      return raw.substring('Exception: '.length);
+    }
     return 'No se pudo iniciar sesion. Intenta nuevamente.';
   }
 
@@ -53,7 +61,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _needsConfirmation = false;
+    });
     try {
       // Quick pre-check: if a users row exists but has no password_hash,
       // the account likely does not have an email/password credential set.
@@ -83,12 +94,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         email: email,
         password: password,
       );
-      // Descarta cualquier dato cacheado de una sesion anterior para que el
-      // diario/amigos se recarguen para ESTA cuenta.
       ref.invalidate(diaryEntriesProvider);
       ref.invalidate(pendingFriendRequestsCountProvider);
       ref.invalidate(acceptedFriendsProvider);
       if (mounted) context.go('/diary');
+    } on EmailNotConfirmedException catch (e) {
+      if (mounted) {
+        setState(() => _needsConfirmation = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.message), backgroundColor: AppTheme.error),
+        );
+      }
     } catch (e) {
       if (mounted) {
         final msg = _mapLoginError(e);
@@ -99,6 +115,50 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _resendConfirmation() async {
+    final email = _emailController.text.trim().toLowerCase();
+    final password = _passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Escribe correo y contraseña para reenviar la verificación.'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() => _isResendingConfirmation = true);
+    try {
+      final result = await ref.read(authRepositoryProvider).resendConfirmationEmail(
+            email: email,
+            password: password,
+          );
+      if (mounted) {
+        if (result.alreadyConfirmed) {
+          setState(() => _needsConfirmation = false);
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result.message), backgroundColor: AppTheme.olive),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_mapLoginError(e)),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isResendingConfirmation = false);
     }
   }
 
@@ -199,6 +259,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                             : const Text('Entrar'),
                         ),
+                        if (_needsConfirmation) ...[
+                          const SizedBox(height: 8),
+                          OutlinedButton(
+                            onPressed: _isResendingConfirmation ? null : _resendConfirmation,
+                            child: _isResendingConfirmation
+                                ? const SizedBox(
+                                    height: 18,
+                                    width: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Text('Reenviar correo de verificación'),
+                          ),
+                        ],
                         const SizedBox(height: 8),
                         TextButton(
                           onPressed: _isSendingReset ? null : _sendPasswordReset,

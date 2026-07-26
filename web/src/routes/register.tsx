@@ -21,10 +21,12 @@ function RegisterPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
+    setPendingEmail(null);
 
     if (!form.username.trim() || !form.email.trim() || !form.password.trim()) {
       setError("Completa usuario, correo y contraseña.");
@@ -46,7 +48,18 @@ function RegisterPage() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
+        if (data?.code === "EMAIL_NOT_CONFIRMED" && typeof data?.email === "string") {
+          setPendingEmail(data.email);
+        }
         throw new Error(data?.message ?? "No se pudo crear la cuenta");
+      }
+
+      if (data?.needsEmailConfirmation) {
+        setPendingEmail(typeof data.email === "string" ? data.email : form.email.trim().toLowerCase());
+        if (typeof data.message === "string") {
+          setError(data.emailSent === false ? data.message : null);
+        }
+        return;
       }
 
       await navigate({ to: "/diary" });
@@ -56,6 +69,49 @@ function RegisterPage() {
       setLoading(false);
     }
   };
+
+  if (pendingEmail) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center px-6 py-10">
+        <div className="mb-8">
+          <Link to="/">
+            <Logo size="md" />
+          </Link>
+        </div>
+
+        <AuthCard
+          title="Verifica tu correo"
+          subtitle="Un paso más para activar tu diario"
+          footer={
+            <>
+              ¿Ya lo confirmaste?{" "}
+              <Link to="/login" className="font-medium text-olive-deep underline-offset-4 hover:underline">
+                Inicia sesión
+              </Link>
+            </>
+          }
+        >
+          <div className="space-y-4 text-sm text-muted-foreground">
+            {error ? (
+              <p className="text-sm text-amber-700 dark:text-amber-400">{error}</p>
+            ) : (
+              <p>
+                Te enviamos un enlace de verificación a{" "}
+                <span className="font-medium text-foreground">{pendingEmail}</span>.
+              </p>
+            )}
+            <p>
+              Cuando tengas el correo, confírmalo e inicia sesión. Si no llegó, espera un rato y usa «Reenviar
+              correo de verificación» en Iniciar sesión. Revisa también spam.
+            </p>
+            <Button asChild className="h-11 w-full rounded-xl">
+              <Link to="/login">Ir a iniciar sesión</Link>
+            </Button>
+          </div>
+        </AuthCard>
+      </main>
+    );
+  }
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center px-6 py-10">
@@ -118,7 +174,7 @@ function RegisterPage() {
           </Button>
 
           <p className="text-center text-xs text-muted-foreground">
-            Al registrarte aceptas nuestros términos y política de privacidad.
+            Te enviaremos un correo para verificar tu cuenta antes de poder entrar.
           </p>
         </form>
       </AuthCard>

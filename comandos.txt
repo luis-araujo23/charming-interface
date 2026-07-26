@@ -1,0 +1,46 @@
+Activar emulador
+
+recuerda primero npm run dev en web
+flutter emulators
+flutter emulators --launch Medium_Phone_API_36.1
+
+correr aplicacion
+cd "telefono"
+flutter run -d emulator-5554
+
+apagar emulador
+adb -s emulator-5554 emu kill
+
+EN telefono (local / emulador)
+
+flutter devices
+cd telefono
+flutter pub get (de ser necesario)
+flutter run
+
+EN telefono contra Vercel (produccion)
+
+flutter run --dart-define=API_BASE_URL=https://TU-PROYECTO.vercel.app
+flutter build apk --dart-define=API_BASE_URL=https://TU-PROYECTO.vercel.app
+
+================================================================================
+CHECKLIST DEPLOY VERCEL (web)
+================================================================================
+1. En Vercel: Import repo → Root Directory = web
+2. Variables de entorno (Production + Preview):
+   - AUTH_SESSION_SECRET   (min 32 chars aleatorios)
+   - APP_URL               = https://tu-proyecto.vercel.app
+   - SUPABASE_URL
+   - SUPABASE_SERVICE_ROLE_KEY
+   - SUPABASE_ANON_KEY
+   - SUPABASE_STORAGE_BUCKET = diary-photos
+3. En Supabase → Authentication → Providers → Email:
+   - Confirm email = ON
+4. En Supabase → Authentication → URL Configuration:
+   - Site URL = https://tu-proyecto.vercel.app
+   - Redirect URLs = https://tu-proyecto.vercel.app/auth/confirmed
+5. En Supabase SQL Editor: ejecutar sql/2026-07-16_email_confirmation.sql
+   (si aun no lo corriste)
+6. Deploy → probar: registro → correo → /auth/confirmed → login web
+7. Telefono: flutter con --dart-define=API_BASE_URL=https://tu-proyecto.vercel.app
+================================================================================

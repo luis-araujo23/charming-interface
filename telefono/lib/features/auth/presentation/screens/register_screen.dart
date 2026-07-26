@@ -17,9 +17,29 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  String? _pendingEmail;
+  String? _pendingWarning;
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   String _mapRegisterError(Object error) {
+    if (error is EmailNotConfirmedException) {
+      return error.message;
+    }
     final message = error.toString().toLowerCase();
+    if (message.contains('nombre de usuario') || message.contains('username')) {
+      return 'Ese nombre de usuario ya esta en uso. Elige otro.';
+    }
+    if (message.contains('correo ya esta registrado') ||
+        message.contains('correo ya está registrado')) {
+      return 'Ese correo ya esta registrado. Inicia sesion o recupera tu contrasena.';
+    }
     if (message.contains('user already registered') || message.contains('ya existe')) {
       return 'Ese usuario o correo ya esta registrado.';
     }
@@ -32,6 +52,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       return 'No se pudo conectar con el servidor. Verifica que el servidor web este activo.';
     }
 
+    final raw = error.toString();
+    if (raw.startsWith('Exception: ')) {
+      return raw.substring('Exception: '.length);
+    }
     return 'No se pudo crear la cuenta. Intenta nuevamente.';
   }
 
@@ -43,7 +67,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (username.isEmpty || email.isEmpty || password.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Completa usuario, correo y contrasena.'), backgroundColor: AppTheme.error),
+          const SnackBar(
+            content: Text('Completa usuario, correo y contrasena.'),
+            backgroundColor: AppTheme.error,
+          ),
         );
       }
       return;
@@ -51,19 +78,35 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await ref.read(authRepositoryProvider).signUp(
-        email: email,
-        password: password,
-        username: username,
+      final result = await ref.read(authRepositoryProvider).signUp(
+            email: email,
+            password: password,
+            username: username,
+          );
+
+      if (!mounted) return;
+
+      if (result.needsEmailConfirmation) {
+        setState(() {
+          _pendingEmail = result.email;
+          _pendingWarning = result.emailSent ? null : result.message;
+        });
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cuenta creada. Ya puedes iniciar sesion.'),
+          backgroundColor: AppTheme.olive,
+        ),
       );
+      context.go('/login');
+    } on EmailNotConfirmedException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Cuenta creada con exito. Ya puedes iniciar sesion.'),
-            backgroundColor: AppTheme.olive,
-          ),
-        );
-        context.go('/login');
+        setState(() {
+          _pendingEmail = e.email;
+          _pendingWarning = e.message;
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -100,65 +143,26 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   Text(
                     'Kitty',
                     style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                      color: AppTheme.oliveDeep,
-                      fontWeight: FontWeight.bold,
-                    ),
+                          color: AppTheme.oliveDeep,
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Empieza tu viaje hoy mismo',
+                    _pendingEmail == null
+                        ? 'Empieza tu viaje hoy mismo'
+                        : 'Verifica tu correo para continuar',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppTheme.olive,
-                    ),
+                          color: AppTheme.olive,
+                        ),
+                    textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 48),
                   PaperCard(
                     padding: const EdgeInsets.all(32),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(
-                          'Crear Cuenta',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontFamily: 'Fraunces',
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        _buildTextField(
-                          controller: _usernameController,
-                          label: 'Nombre de Usuario',
-                          hint: 'tu_nombre',
-                        ),
-                        const SizedBox(height: 16),
-                        _buildTextField(
-                          controller: _emailController,
-                          label: 'Correo Electrónico',
-                          hint: 'ejemplo@correo.com',
-                        ),
-                        const SizedBox(height: 16),
-                        _buildTextField(
-                          controller: _passwordController,
-                          label: 'Contraseña',
-                          hint: '••••••••',
-                          isPassword: true,
-                        ),
-                        const SizedBox(height: 32),
-                        ElevatedButton(
-                          onPressed: _isLoading ? null : _register,
-                          child: _isLoading 
-                            ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                            : const Text('Registrarse'),
-                        ),
-                        const SizedBox(height: 16),
-                        TextButton(
-                          onPressed: () => context.pop(),
-                          child: const Text(
-                            '¿Ya tienes cuenta? Inicia sesión',
-                            style: TextStyle(color: AppTheme.olive),
-                          ),
-                        ),
-                      ],
-                    ),
+                    child: _pendingEmail != null
+                        ? _buildPendingConfirmation()
+                        : _buildRegisterForm(),
                   ),
                 ],
               ),
@@ -166,6 +170,119 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildPendingConfirmation() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Revisa tu correo',
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontFamily: 'Fraunces',
+              ),
+        ),
+        const SizedBox(height: 16),
+        if (_pendingWarning != null) ...[
+          Text(
+            _pendingWarning!,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  height: 1.5,
+                  color: AppTheme.error,
+                ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Tu cuenta (${_pendingEmail!}) ya esta creada. Cuando pase el limite, '
+            'en Iniciar sesion usa Reenviar correo de verificacion.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+          ),
+        ] else ...[
+          Text(
+            'Te enviamos un enlace de verificacion a ${_pendingEmail!}. '
+            'Abrelo, confirma tu cuenta y luego inicia sesion.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Si no lo ves, revisa la carpeta de spam.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.olive),
+          ),
+        ],
+        const SizedBox(height: 28),
+        ElevatedButton(
+          onPressed: () => context.go('/login'),
+          child: const Text('Ir a iniciar sesion'),
+        ),
+        TextButton(
+          onPressed: () => setState(() {
+            _pendingEmail = null;
+            _pendingWarning = null;
+          }),
+          child: const Text(
+            'Volver al registro',
+            style: TextStyle(color: AppTheme.olive),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRegisterForm() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Crear Cuenta',
+          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontFamily: 'Fraunces',
+              ),
+        ),
+        const SizedBox(height: 24),
+        _buildTextField(
+          controller: _usernameController,
+          label: 'Nombre de Usuario',
+          hint: 'tu_nombre',
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          controller: _emailController,
+          label: 'Correo Electrónico',
+          hint: 'ejemplo@correo.com',
+        ),
+        const SizedBox(height: 16),
+        _buildTextField(
+          controller: _passwordController,
+          label: 'Contraseña',
+          hint: '••••••••',
+          isPassword: true,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'Te enviaremos un correo para verificar tu cuenta antes de poder entrar.',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.olive),
+        ),
+        const SizedBox(height: 24),
+        ElevatedButton(
+          onPressed: _isLoading ? null : _register,
+          child: _isLoading
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : const Text('Registrarse'),
+        ),
+        const SizedBox(height: 16),
+        TextButton(
+          onPressed: () => context.pop(),
+          child: const Text(
+            '¿Ya tienes cuenta? Inicia sesión',
+            style: TextStyle(color: AppTheme.olive),
+          ),
+        ),
+      ],
     );
   }
 
@@ -181,9 +298,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         Text(
           label,
           style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: AppTheme.oliveDeep,
-            fontWeight: FontWeight.w600,
-          ),
+                color: AppTheme.oliveDeep,
+                fontWeight: FontWeight.w600,
+              ),
         ),
         const SizedBox(height: 8),
         TextField(

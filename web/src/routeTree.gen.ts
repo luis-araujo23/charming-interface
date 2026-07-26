@@ -13,6 +13,7 @@ import { Route as RegisterRouteImport } from './routes/register'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthConfirmedRouteImport } from './routes/auth.confirmed'
 import { Route as ApiTaggedRouteImport } from './routes/api/tagged'
 import { Route as ApiStreaksRouteImport } from './routes/api/streaks'
 import { Route as ApiMemoriesRouteImport } from './routes/api/memories'
@@ -37,9 +38,11 @@ import { Route as ApiDiaryPhotosRouteImport } from './routes/api/diary/photos'
 import { Route as ApiDiaryCalendarRouteImport } from './routes/api/diary/calendar'
 import { Route as ApiAuthSyncRouteImport } from './routes/api/auth/sync'
 import { Route as ApiAuthSessionRouteImport } from './routes/api/auth/session'
+import { Route as ApiAuthResendConfirmationRouteImport } from './routes/api/auth/resend-confirmation'
 import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
 import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
 import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
+import { Route as ApiAuthConfirmFromSessionRouteImport } from './routes/api/auth/confirm-from-session'
 
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
@@ -58,6 +61,11 @@ const AppRoute = AppRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthConfirmedRoute = AuthConfirmedRouteImport.update({
+  id: '/auth/confirmed',
+  path: '/auth/confirmed',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTaggedRoute = ApiTaggedRouteImport.update({
@@ -180,6 +188,12 @@ const ApiAuthSessionRoute = ApiAuthSessionRouteImport.update({
   path: '/api/auth/session',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthResendConfirmationRoute =
+  ApiAuthResendConfirmationRouteImport.update({
+    id: '/api/auth/resend-confirmation',
+    path: '/api/auth/resend-confirmation',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAuthRegisterRoute = ApiAuthRegisterRouteImport.update({
   id: '/api/auth/register',
   path: '/api/auth/register',
@@ -195,6 +209,12 @@ const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
   path: '/api/auth/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthConfirmFromSessionRoute =
+  ApiAuthConfirmFromSessionRouteImport.update({
+    id: '/api/auth/confirm-from-session',
+    path: '/api/auth/confirm-from-session',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -212,9 +232,12 @@ export interface FileRoutesByFullPath {
   '/api/memories': typeof ApiMemoriesRoute
   '/api/streaks': typeof ApiStreaksRoute
   '/api/tagged': typeof ApiTaggedRouteWithChildren
+  '/auth/confirmed': typeof AuthConfirmedRoute
+  '/api/auth/confirm-from-session': typeof ApiAuthConfirmFromSessionRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/auth/resend-confirmation': typeof ApiAuthResendConfirmationRoute
   '/api/auth/session': typeof ApiAuthSessionRoute
   '/api/auth/sync': typeof ApiAuthSyncRoute
   '/api/diary/calendar': typeof ApiDiaryCalendarRoute
@@ -244,9 +267,12 @@ export interface FileRoutesByTo {
   '/api/memories': typeof ApiMemoriesRoute
   '/api/streaks': typeof ApiStreaksRoute
   '/api/tagged': typeof ApiTaggedRouteWithChildren
+  '/auth/confirmed': typeof AuthConfirmedRoute
+  '/api/auth/confirm-from-session': typeof ApiAuthConfirmFromSessionRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/auth/resend-confirmation': typeof ApiAuthResendConfirmationRoute
   '/api/auth/session': typeof ApiAuthSessionRoute
   '/api/auth/sync': typeof ApiAuthSyncRoute
   '/api/diary/calendar': typeof ApiDiaryCalendarRoute
@@ -278,9 +304,12 @@ export interface FileRoutesById {
   '/api/memories': typeof ApiMemoriesRoute
   '/api/streaks': typeof ApiStreaksRoute
   '/api/tagged': typeof ApiTaggedRouteWithChildren
+  '/auth/confirmed': typeof AuthConfirmedRoute
+  '/api/auth/confirm-from-session': typeof ApiAuthConfirmFromSessionRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/auth/resend-confirmation': typeof ApiAuthResendConfirmationRoute
   '/api/auth/session': typeof ApiAuthSessionRoute
   '/api/auth/sync': typeof ApiAuthSyncRoute
   '/api/diary/calendar': typeof ApiDiaryCalendarRoute
@@ -312,9 +341,12 @@ export interface FileRouteTypes {
     | '/api/memories'
     | '/api/streaks'
     | '/api/tagged'
+    | '/auth/confirmed'
+    | '/api/auth/confirm-from-session'
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/register'
+    | '/api/auth/resend-confirmation'
     | '/api/auth/session'
     | '/api/auth/sync'
     | '/api/diary/calendar'
@@ -344,9 +376,12 @@ export interface FileRouteTypes {
     | '/api/memories'
     | '/api/streaks'
     | '/api/tagged'
+    | '/auth/confirmed'
+    | '/api/auth/confirm-from-session'
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/register'
+    | '/api/auth/resend-confirmation'
     | '/api/auth/session'
     | '/api/auth/sync'
     | '/api/diary/calendar'
@@ -377,9 +412,12 @@ export interface FileRouteTypes {
     | '/api/memories'
     | '/api/streaks'
     | '/api/tagged'
+    | '/auth/confirmed'
+    | '/api/auth/confirm-from-session'
     | '/api/auth/login'
     | '/api/auth/logout'
     | '/api/auth/register'
+    | '/api/auth/resend-confirmation'
     | '/api/auth/session'
     | '/api/auth/sync'
     | '/api/diary/calendar'
@@ -404,9 +442,12 @@ export interface RootRouteChildren {
   ApiMemoriesRoute: typeof ApiMemoriesRoute
   ApiStreaksRoute: typeof ApiStreaksRoute
   ApiTaggedRoute: typeof ApiTaggedRouteWithChildren
+  AuthConfirmedRoute: typeof AuthConfirmedRoute
+  ApiAuthConfirmFromSessionRoute: typeof ApiAuthConfirmFromSessionRoute
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
   ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
   ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
+  ApiAuthResendConfirmationRoute: typeof ApiAuthResendConfirmationRoute
   ApiAuthSessionRoute: typeof ApiAuthSessionRoute
   ApiAuthSyncRoute: typeof ApiAuthSyncRoute
 }
@@ -439,6 +480,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/confirmed': {
+      id: '/auth/confirmed'
+      path: '/auth/confirmed'
+      fullPath: '/auth/confirmed'
+      preLoaderRoute: typeof AuthConfirmedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/tagged': {
@@ -609,6 +657,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSessionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/resend-confirmation': {
+      id: '/api/auth/resend-confirmation'
+      path: '/api/auth/resend-confirmation'
+      fullPath: '/api/auth/resend-confirmation'
+      preLoaderRoute: typeof ApiAuthResendConfirmationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/register': {
       id: '/api/auth/register'
       path: '/api/auth/register'
@@ -628,6 +683,13 @@ declare module '@tanstack/react-router' {
       path: '/api/auth/login'
       fullPath: '/api/auth/login'
       preLoaderRoute: typeof ApiAuthLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/confirm-from-session': {
+      id: '/api/auth/confirm-from-session'
+      path: '/api/auth/confirm-from-session'
+      fullPath: '/api/auth/confirm-from-session'
+      preLoaderRoute: typeof ApiAuthConfirmFromSessionRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -715,9 +777,12 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMemoriesRoute: ApiMemoriesRoute,
   ApiStreaksRoute: ApiStreaksRoute,
   ApiTaggedRoute: ApiTaggedRouteWithChildren,
+  AuthConfirmedRoute: AuthConfirmedRoute,
+  ApiAuthConfirmFromSessionRoute: ApiAuthConfirmFromSessionRoute,
   ApiAuthLoginRoute: ApiAuthLoginRoute,
   ApiAuthLogoutRoute: ApiAuthLogoutRoute,
   ApiAuthRegisterRoute: ApiAuthRegisterRoute,
+  ApiAuthResendConfirmationRoute: ApiAuthResendConfirmationRoute,
   ApiAuthSessionRoute: ApiAuthSessionRoute,
   ApiAuthSyncRoute: ApiAuthSyncRoute,
 }

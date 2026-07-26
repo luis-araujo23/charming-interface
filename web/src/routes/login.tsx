@@ -18,8 +18,11 @@ function LoginPage() {
     password: "",
   });
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const [needsConfirmation, setNeedsConfirmation] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -49,6 +52,8 @@ function LoginPage() {
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
+    setInfo(null);
+    setNeedsConfirmation(false);
 
     if (!form.email.trim() || !form.password.trim()) {
       setError("Completa correo y contraseña.");
@@ -69,6 +74,9 @@ function LoginPage() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
+        if (data?.code === "EMAIL_NOT_CONFIRMED") {
+          setNeedsConfirmation(true);
+        }
         throw new Error(data?.message ?? "No se pudo iniciar sesión");
       }
 
@@ -77,6 +85,42 @@ function LoginPage() {
       setError(err instanceof Error ? err.message : "Error inesperado");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onResendConfirmation = async () => {
+    setError(null);
+    setInfo(null);
+
+    if (!form.email.trim() || !form.password.trim()) {
+      setError("Escribe tu correo y contraseña para reenviar la verificación.");
+      return;
+    }
+
+    setResending(true);
+    try {
+      const res = await fetch("/api/auth/resend-confirmation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: form.email.trim(),
+          password: form.password,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data?.message ?? "No se pudo reenviar el correo.");
+      }
+
+      setInfo(data?.message ?? "Correo reenviado.");
+      if (data?.alreadyConfirmed) {
+        setNeedsConfirmation(false);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error inesperado");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -133,6 +177,19 @@ function LoginPage() {
           </div>
 
           {error ? <p className="text-sm text-red-500">{error}</p> : null}
+          {info ? <p className="text-sm text-olive-deep">{info}</p> : null}
+
+          {needsConfirmation ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={resending || loading}
+              onClick={() => void onResendConfirmation()}
+              className="h-11 w-full rounded-xl"
+            >
+              {resending ? "Reenviando..." : "Reenviar correo de verificación"}
+            </Button>
+          ) : null}
 
           <Button
             type="submit"

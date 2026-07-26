@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { compare } from "bcryptjs";
 import { buildSessionCookie, createSessionToken } from "@/lib/auth-session";
+import { syncPublicEmailConfirmedFromAuth } from "@/lib/supabase-auth";
 import { getSupabaseAdmin, isSupabaseEnvError } from "@/lib/supabase";
 
 type LoginPayload = {
@@ -31,7 +32,7 @@ export const Route = createFileRoute("/api/auth/login")({
           const supabase = getSupabaseAdmin();
           const { data: user, error: userError } = await supabase
             .from("users")
-            .select("id, username, email, password_hash")
+            .select("id, username, email, password_hash, email_confirmed")
             .ilike("email", email)
             .order("id", { ascending: true })
             .limit(1)
@@ -49,6 +50,30 @@ export const Route = createFileRoute("/api/auth/login")({
 
           if (!matches) {
             return Response.json({ message: "Credenciales inválidas." }, { status: 401 });
+          }
+
+          let emailConfirmed = user.email_confirmed === true;
+
+          // User may have just clicked the confirmation link (Auth confirmed)
+          // while public.users still has email_confirmed=false. Sync before denying.
+          if (!emailConfirmed) {
+            try {
+              emailConfirmed = await syncPublicEmailConfirmedFromAuth(supabase, user.email);
+            } catch (syncError) {
+              console.error("Login email-confirm sync error", syncError);
+            }
+          }
+
+          if (!emailConfirmed) {
+            return Response.json(
+              {
+                message:
+                  "Debes verificar tu correo antes de iniciar sesión. Revisa tu bandeja de entrada (y spam).",
+                code: "EMAIL_NOT_CONFIRMED",
+                email: user.email,
+              },
+              { status: 403 },
+            );
           }
 
           const token = createSessionToken({
@@ -78,6 +103,16 @@ export const Route = createFileRoute("/api/auth/login")({
           if (isSupabaseEnvError(error)) {
             return Response.json(
               { message: "Falta configurar SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY en el archivo .env." },
+              { status: 500 },
+            );
+          }
+
+          if (error instanceof Error && error.message.includes("AUTH_SESSION_SECRET")) {
+            return Response.json(
+              {
+                message:
+                  "Falta AUTH_SESSION_SECRET en el entorno (mínimo 32 caracteres). Configúralo en Vercel antes de iniciar sesión.",
+              },
               { status: 500 },
             );
           }
