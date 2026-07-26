@@ -210,10 +210,11 @@ export const Route = createFileRoute("/api/auth/register")({
                 sendError instanceof Error && sendError.message
                   ? sendError.message
                   : "error desconocido";
-              message =
-                detail.includes("RESEND_API_KEY") || detail.toLowerCase().includes("resend")
-                  ? `Cuenta creada, pero falta configurar el envío de correo (Resend): ${detail}`
-                  : "Cuenta creada, pero no pudimos enviar el correo ahora. Más tarde, en Iniciar sesión, usa «Reenviar correo de verificación».";
+              message = detail.includes("RESEND_API_KEY")
+                ? "Cuenta creada, pero falta RESEND_API_KEY en Vercel. Añádela en Environment Variables, haz Redeploy y usa «Reenviar correo» en Iniciar sesión."
+                : detail.toLowerCase().includes("resend")
+                  ? `Cuenta creada, pero Resend rechazó el envío: ${detail}`
+                  : `Cuenta creada, pero no pudimos enviar el correo: ${detail}`;
               console.error("Register email send error", sendError);
             }
           }

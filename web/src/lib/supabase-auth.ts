@@ -330,58 +330,9 @@ async function sendConfirmationEmailWithResend(params: {
   }
 }
 
-async function sendConfirmationEmailWithSupabaseResend(params: {
-  email: string;
-  emailRedirectTo: string;
-}) {
-  const supabaseUrl = process.env.SUPABASE_URL?.trim();
-  const anonKey =
-    process.env.SUPABASE_ANON_KEY?.trim() ||
-    process.env.VITE_SUPABASE_ANON_KEY?.trim() ||
-    process.env.PUBLIC_SUPABASE_ANON_KEY?.trim();
-
-  if (!supabaseUrl || !anonKey) {
-    throw new Error(
-      "Falta SUPABASE_ANON_KEY (o VITE_SUPABASE_ANON_KEY) en el entorno del servidor para enviar el correo de verificación.",
-    );
-  }
-
-  const redirectTo = encodeURIComponent(params.emailRedirectTo);
-  const response = await fetch(
-    `${supabaseUrl.replace(/\/$/, "")}/auth/v1/resend?redirect_to=${redirectTo}`,
-    {
-      method: "POST",
-      headers: {
-        apikey: anonKey,
-        Authorization: `Bearer ${anonKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        type: "signup",
-        email: params.email.trim().toLowerCase(),
-      }),
-    },
-  );
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    if (response.status === 429 || body.toLowerCase().includes("rate_limit")) {
-      throw new Error(
-        "EMAIL_RATE_LIMIT: Supabase limitó el envío de correos por demasiados intentos. Espera unos minutos (o hasta 1 hora) y usa Reenviar, o prueba con otro correo.",
-      );
-    }
-
-    throw new Error(
-      body
-        ? `No se pudo enviar el correo de verificación: ${body}`
-        : `No se pudo enviar el correo de verificación (HTTP ${response.status}).`,
-    );
-  }
-}
-
 /**
- * Sends the signup confirmation email.
- * Prefer Resend (reliable). Supabase's built-in SMTP often never arrives.
+ * Sends the signup confirmation email via Resend ONLY.
+ * Supabase free SMTP is unreliable and is no longer used as a silent fallback.
  */
 export async function sendSignupConfirmationEmail(params: {
   email: string;
@@ -390,27 +341,21 @@ export async function sendSignupConfirmationEmail(params: {
   password?: string;
 }) {
   const resendKey = process.env.RESEND_API_KEY?.trim();
-
-  if (resendKey) {
-    const actionLink = await buildEmailConfirmationLink({
-      email: params.email,
-      password: params.password,
-      emailRedirectTo: params.emailRedirectTo,
-    });
-    await sendConfirmationEmailWithResend({
-      email: params.email,
-      actionLink,
-    });
-    return;
+  if (!resendKey) {
+    throw new Error(
+      "Falta RESEND_API_KEY en Vercel. Sin ella Kitty no puede enviar el correo de verificación. Añádela en Environment Variables y haz Redeploy.",
+    );
   }
 
-  // Fallback: Supabase shared inbox (often delayed / spam / missing).
-  console.warn(
-    "[auth] RESEND_API_KEY no está configurada. Usando el correo gratis de Supabase (puede no llegar). Configura Resend en Vercel.",
-  );
-  await sendConfirmationEmailWithSupabaseResend({
+  const actionLink = await buildEmailConfirmationLink({
     email: params.email,
+    password: params.password,
     emailRedirectTo: params.emailRedirectTo,
+  });
+
+  await sendConfirmationEmailWithResend({
+    email: params.email,
+    actionLink,
   });
 }
 
