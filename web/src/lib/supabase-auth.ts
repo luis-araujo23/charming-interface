@@ -315,11 +315,37 @@ function getValidResendApiKey() {
 function getSmtpConfig() {
   const host = stripEnvQuotes(process.env.SMTP_HOST);
   const user = stripEnvQuotes(process.env.SMTP_USER);
-  const pass = stripEnvQuotes(process.env.SMTP_PASS);
+  const pass = stripEnvQuotes(process.env.SMTP_PASS).replace(/\s+/g, "");
   const portRaw = stripEnvQuotes(process.env.SMTP_PORT) || "465";
   const port = Number(portRaw) || 465;
 
-  if (!host || !user || !pass) return null;
+  if (!host && !user && !pass) return null;
+
+  if (!host || !user || !pass) {
+    throw new Error(
+      "SMTP incompleto en Vercel. Necesitas las 3: SMTP_HOST=smtp.gmail.com, SMTP_USER=tu@gmail.com, SMTP_PASS=contraseña de aplicación de 16 letras.",
+    );
+  }
+
+  if (!host.includes(".")) {
+    throw new Error(
+      `SMTP_HOST inválido ("${host}"). Debe ser exactamente: smtp.gmail.com`,
+    );
+  }
+
+  if (!user.includes("@")) {
+    throw new Error(
+      `SMTP_USER inválido ("${user}"). Debe ser tu Gmail completo, ej: luisalfonsoaraujoleon@gmail.com`,
+    );
+  }
+
+  // Google app passwords are 16 chars (sometimes shown with spaces).
+  if (pass.length < 16) {
+    throw new Error(
+      `SMTP_PASS parece incompleta (${pass.length} caracteres). Debe ser la contraseña de aplicación de Google (16 letras). No uses tu contraseña normal de Gmail.`,
+    );
+  }
+
   return { host, user, pass, port, secure: port === 465 };
 }
 
