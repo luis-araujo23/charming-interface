@@ -106,6 +106,7 @@ export const Route = createFileRoute("/api/auth/resend-confirmation")({
 
           await sendSignupConfirmationEmail({
             email: user.email,
+            password,
             emailRedirectTo: resolveEmailRedirectTo(request),
           });
 

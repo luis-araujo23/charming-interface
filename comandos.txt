@@ -34,13 +34,22 @@ CHECKLIST DEPLOY VERCEL (web)
    - SUPABASE_SERVICE_ROLE_KEY
    - SUPABASE_ANON_KEY
    - SUPABASE_STORAGE_BUCKET = diary-photos
-3. En Supabase → Authentication → Providers → Email:
+   - RESEND_API_KEY        (https://resend.com — sin esto el correo casi nunca llega)
+   - EMAIL_FROM            = Kitty <noreply@tudominio.com>  (despues de verificar dominio)
+3. Resend (correo real):
+   - Crear cuenta en https://resend.com
+   - API Keys → Create → copiar a Vercel como RESEND_API_KEY
+   - Domains → Add domain → poner DNS → esperar verified
+   - EMAIL_FROM = Kitty <noreply@tudominio-verificado.com>
+   - Sin dominio verificado, Resend solo puede enviar a TU propio email de Resend
+4. En Supabase → Authentication → Providers → Email:
    - Confirm email = ON
-4. En Supabase → Authentication → URL Configuration:
+5. En Supabase → Authentication → URL Configuration:
    - Site URL = https://tu-proyecto.vercel.app
    - Redirect URLs = https://tu-proyecto.vercel.app/auth/confirmed
-5. En Supabase SQL Editor: ejecutar sql/2026-07-16_email_confirmation.sql
+6. En Supabase SQL Editor: ejecutar sql/2026-07-16_email_confirmation.sql
    (si aun no lo corriste)
-6. Deploy → probar: registro → correo → /auth/confirmed → login web
-7. Telefono: flutter con --dart-define=API_BASE_URL=https://tu-proyecto.vercel.app
+7. Redeploy en Vercel tras guardar variables
+8. Probar: registro → correo de Resend → /auth/confirmed → login
+9. Telefono: flutter con --dart-define=API_BASE_URL=https://tu-proyecto.vercel.app
 ================================================================================

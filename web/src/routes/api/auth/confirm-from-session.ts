@@ -7,9 +7,9 @@ type ConfirmPayload = {
 };
 
 /**
- * After the user clicks the Supabase email link, Auth redirects here with
- * #access_token=... in the URL. This endpoint marks public.users.email_confirmed
- * so web login (bcrypt) does not keep blocking them.
+ * After the user clicks the email link, Auth redirects here with
+ * #access_token=... . We accept a valid session token and mark both
+ * Auth + public.users as confirmed (works for Resend magic links too).
  */
 export const Route = createFileRoute("/api/auth/confirm-from-session")({
   server: {
@@ -49,25 +49,26 @@ export const Route = createFileRoute("/api/auth/confirm-from-session")({
           });
 
           const { data, error } = await anon.auth.getUser(accessToken);
-          if (error || !data.user?.email) {
+          if (error || !data.user?.email || !data.user.id) {
             return Response.json(
               { message: "El enlace de verificación no es válido o ya expiró." },
               { status: 401 },
             );
           }
 
-          if (!data.user.email_confirmed_at) {
-            return Response.json(
-              {
-                message: "Supabase aún no marcó este correo como verificado.",
-                confirmed: false,
-              },
-              { status: 409 },
-            );
-          }
-
           const email = data.user.email.trim().toLowerCase();
           const admin = getSupabaseAdmin();
+
+          // Clicking our email link is enough proof — force Auth confirm if needed.
+          if (!data.user.email_confirmed_at) {
+            const { error: confirmError } = await admin.auth.admin.updateUserById(data.user.id, {
+              email_confirm: true,
+            });
+            if (confirmError) {
+              throw confirmError;
+            }
+          }
+
           const { error: updateError } = await admin
             .from("users")
             .update({ email_confirmed: true })

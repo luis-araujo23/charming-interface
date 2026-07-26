@@ -68,7 +68,43 @@ export const Route = createFileRoute("/api/auth/register")({
               .maybeSingle(),
           ]);
 
+          // Same person retrying register after a successful create (common when
+          // the confirmation email was slow / buried in spam).
+          if (
+            byUsername &&
+            byEmail &&
+            byUsername.id === byEmail.id &&
+            byEmail.email_confirmed === false
+          ) {
+            return Response.json(
+              {
+                message:
+                  "Tu cuenta ya está creada, pero el correo aún no está verificado. Ve a Iniciar sesión y usa «Reenviar correo de verificación».",
+                code: "EMAIL_NOT_CONFIRMED",
+                email,
+              },
+              { status: 409 },
+            );
+          }
+
           if (byUsername) {
+            // Username taken by this same email (partial match race) or another account.
+            if (
+              byUsername.email_confirmed === false &&
+              typeof byUsername.email === "string" &&
+              byUsername.email.toLowerCase() === email
+            ) {
+              return Response.json(
+                {
+                  message:
+                    "Tu cuenta ya está creada, pero el correo aún no está verificado. Ve a Iniciar sesión y usa «Reenviar correo de verificación».",
+                  code: "EMAIL_NOT_CONFIRMED",
+                  email,
+                },
+                { status: 409 },
+              );
+            }
+
             return Response.json(
               {
                 message: `El nombre de usuario «${username}» ya está en uso. Elige otro.`,
@@ -159,6 +195,7 @@ export const Route = createFileRoute("/api/auth/register")({
           try {
             await sendSignupConfirmationEmail({
               email,
+              password,
               emailRedirectTo,
             });
           } catch (sendError) {
@@ -166,11 +203,17 @@ export const Route = createFileRoute("/api/auth/register")({
               emailSent = false;
               emailRateLimited = true;
               message =
-                "Cuenta creada, pero Supabase limitó el envío de correos por demasiados intentos. Espera unos minutos (hasta ~1 hora) y en Iniciar sesión usa «Reenviar correo de verificación».";
+                "Cuenta creada, pero se limitó el envío de correos. Espera unos minutos y en Iniciar sesión usa «Reenviar correo de verificación».";
             } else {
               emailSent = false;
+              const detail =
+                sendError instanceof Error && sendError.message
+                  ? sendError.message
+                  : "error desconocido";
               message =
-                "Cuenta creada, pero no pudimos enviar el correo ahora. Más tarde, en Iniciar sesión, usa «Reenviar correo de verificación».";
+                detail.includes("RESEND_API_KEY") || detail.toLowerCase().includes("resend")
+                  ? `Cuenta creada, pero falta configurar el envío de correo (Resend): ${detail}`
+                  : "Cuenta creada, pero no pudimos enviar el correo ahora. Más tarde, en Iniciar sesión, usa «Reenviar correo de verificación».";
               console.error("Register email send error", sendError);
             }
           }

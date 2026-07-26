@@ -238,7 +238,99 @@ export function isEmailSendRateLimitError(error: unknown) {
   );
 }
 
-export async function sendSignupConfirmationEmail(params: {
+async function buildEmailConfirmationLink(params: {
+  email: string;
+  password?: string;
+  emailRedirectTo: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const email = params.email.trim().toLowerCase();
+
+  // User already exists after register, so "signup" generateLink usually fails.
+  // Prefer magiclink; the landing page will mark Auth + public as confirmed.
+  if (params.password) {
+    const signup = await admin.auth.admin.generateLink({
+      type: "signup",
+      email,
+      password: params.password,
+      options: { redirectTo: params.emailRedirectTo },
+    });
+    if (!signup.error && signup.data.properties?.action_link) {
+      return signup.data.properties.action_link;
+    }
+  }
+
+  const magic = await admin.auth.admin.generateLink({
+    type: "magiclink",
+    email,
+    options: { redirectTo: params.emailRedirectTo },
+  });
+
+  if (magic.error || !magic.data.properties?.action_link) {
+    throw magic.error ?? new Error("No se pudo generar el enlace de verificación.");
+  }
+
+  return magic.data.properties.action_link;
+}
+
+async function sendConfirmationEmailWithResend(params: {
+  email: string;
+  actionLink: string;
+}) {
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey) {
+    throw new Error("Falta RESEND_API_KEY.");
+  }
+
+  const from =
+    process.env.EMAIL_FROM?.trim() ||
+    process.env.RESEND_FROM?.trim() ||
+    "Kitty <onboarding@resend.dev>";
+
+  const to = params.email.trim().toLowerCase();
+  const html = `
+    <div style="font-family: Georgia, serif; max-width: 520px; margin: 0 auto; color: #1f2a1f;">
+      <h1 style="font-size: 28px; margin-bottom: 8px;">kitty</h1>
+      <p style="font-size: 16px; line-height: 1.5;">Confirma tu correo para activar tu diario.</p>
+      <p style="margin: 28px 0;">
+        <a href="${params.actionLink}"
+           style="display: inline-block; background: #3d4f3a; color: #fff; text-decoration: none; padding: 12px 20px; border-radius: 10px;">
+          Verificar mi correo
+        </a>
+      </p>
+      <p style="font-size: 13px; color: #5c6b5c; line-height: 1.5;">
+        Si el botón no funciona, copia y pega este enlace en el navegador:<br/>
+        <a href="${params.actionLink}" style="color: #3d4f3a; word-break: break-all;">${params.actionLink}</a>
+      </p>
+      <p style="font-size: 12px; color: #7a8a7a;">Si no creaste una cuenta en Kitty, ignora este mensaje.</p>
+    </div>
+  `;
+
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: [to],
+      subject: "Verifica tu correo en Kitty",
+      html,
+    }),
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new Error(
+      body
+        ? `Resend no pudo enviar el correo: ${body}`
+        : `Resend no pudo enviar el correo (HTTP ${response.status}).`,
+    );
+  }
+}
+
+async function sendConfirmationEmailWithSupabaseResend(params: {
   email: string;
   emailRedirectTo: string;
 }) {
@@ -254,8 +346,6 @@ export async function sendSignupConfirmationEmail(params: {
     );
   }
 
-  // Prefer the public Auth "resend" endpoint so Supabase itself delivers the
-  // confirmation email (admin.createUser never sends mail).
   const redirectTo = encodeURIComponent(params.emailRedirectTo);
   const response = await fetch(
     `${supabaseUrl.replace(/\/$/, "")}/auth/v1/resend?redirect_to=${redirectTo}`,
@@ -287,6 +377,41 @@ export async function sendSignupConfirmationEmail(params: {
         : `No se pudo enviar el correo de verificación (HTTP ${response.status}).`,
     );
   }
+}
+
+/**
+ * Sends the signup confirmation email.
+ * Prefer Resend (reliable). Supabase's built-in SMTP often never arrives.
+ */
+export async function sendSignupConfirmationEmail(params: {
+  email: string;
+  emailRedirectTo: string;
+  /** Helps generateLink(type=signup) when available (register / resend). */
+  password?: string;
+}) {
+  const resendKey = process.env.RESEND_API_KEY?.trim();
+
+  if (resendKey) {
+    const actionLink = await buildEmailConfirmationLink({
+      email: params.email,
+      password: params.password,
+      emailRedirectTo: params.emailRedirectTo,
+    });
+    await sendConfirmationEmailWithResend({
+      email: params.email,
+      actionLink,
+    });
+    return;
+  }
+
+  // Fallback: Supabase shared inbox (often delayed / spam / missing).
+  console.warn(
+    "[auth] RESEND_API_KEY no está configurada. Usando el correo gratis de Supabase (puede no llegar). Configura Resend en Vercel.",
+  );
+  await sendConfirmationEmailWithSupabaseResend({
+    email: params.email,
+    emailRedirectTo: params.emailRedirectTo,
+  });
 }
 
 /** Optional helper if some callers need an anon client later. */
