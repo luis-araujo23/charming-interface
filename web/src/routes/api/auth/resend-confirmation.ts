@@ -115,15 +115,26 @@ export const Route = createFileRoute("/api/auth/resend-confirmation")({
             sendErrors: sent.sendErrors,
           });
 
+          if (!sent.emailSent) {
+            return Response.json(
+              {
+                message:
+                  sent.sendErrors.join(" | ") ||
+                  "No pudimos enviar el correo de verificación. Intenta de nuevo en unos minutos.",
+                email: user.email,
+                emailSent: false,
+                mailProvider: sent.provider,
+              },
+              { status: 500 },
+            );
+          }
+
           return Response.json(
             {
-              message: sent.emailSent
-                ? "Listo. Si el correo no llega, usa el botón Verificar ahora."
-                : "No pudimos entregar el correo, pero puedes verificar con el botón Verificar ahora.",
+              message: "Te reenviamos el correo de verificación. Revisa tu bandeja (y spam).",
               email: user.email,
-              emailSent: sent.emailSent,
+              emailSent: true,
               mailProvider: sent.provider,
-              confirmLink: sent.confirmLink,
             },
             { status: 200 },
           );

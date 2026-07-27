@@ -438,18 +438,14 @@ async function sendConfirmationEmailWithSmtp(params: {
 }
 
 export type MailSendResult = {
-  /** Always returned so the client can verify even if Gmail/Resend never lands. */
-  confirmLink: string;
   emailSent: boolean;
   provider: "smtp" | "resend" | "both" | "none";
   sendErrors: string[];
 };
 
 /**
- * Builds the confirmation link and tries to email it (SMTP + Resend, best-effort).
- *
- * IMPORTANT: always returns `confirmLink`. Free Gmail→Gmail delivery is unreliable,
- * so the UI must show this link as the primary verification path.
+ * Builds the confirmation link and emails it (SMTP + Resend, best-effort).
+ * The link is never returned to clients — verification must happen via email.
  */
 export async function sendSignupConfirmationEmail(params: {
   email: string;
@@ -499,7 +495,7 @@ export async function sendSignupConfirmationEmail(params: {
   const provider: MailSendResult["provider"] =
     smtpOk && resendOk ? "both" : smtpOk ? "smtp" : resendOk ? "resend" : "none";
 
-  return { confirmLink, emailSent, provider, sendErrors };
+  return { emailSent, provider, sendErrors };
 }
 
 /** Optional helper if some callers need an anon client later. */

@@ -182,7 +182,6 @@ class SupabaseAuthRepository {
     String email,
     bool emailSent,
     String? message,
-    String? confirmLink,
   })> signUp({
     required String email,
     required String password,
@@ -217,9 +216,6 @@ class SupabaseAuthRepository {
           email: (decoded?['email'] as String?) ?? normalizedEmail,
           emailSent: decoded?['emailSent'] != false,
           message: decoded?['message'] is String ? decoded!['message'] as String : null,
-          confirmLink: decoded?['confirmLink'] is String
-              ? decoded!['confirmLink'] as String
-              : null,
         );
       }
 
@@ -250,7 +246,7 @@ class SupabaseAuthRepository {
     }
   }
 
-  Future<({bool alreadyConfirmed, String message, String? confirmLink})> resendConfirmationEmail({
+  Future<({bool alreadyConfirmed, String message})> resendConfirmationEmail({
     required String email,
     required String password,
   }) async {
@@ -277,10 +273,7 @@ class SupabaseAuthRepository {
       return (
         alreadyConfirmed: decoded?['alreadyConfirmed'] == true,
         message: (decoded?['message'] as String?) ??
-            'Listo. Si el correo no llega, usa Verificar ahora.',
-        confirmLink: decoded?['confirmLink'] is String
-            ? decoded!['confirmLink'] as String
-            : null,
+            'Te reenviamos el correo de verificación.',
       );
     }
 

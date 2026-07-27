@@ -22,13 +22,11 @@ function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
-  const [confirmLink, setConfirmLink] = useState<string | null>(null);
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
     setPendingEmail(null);
-    setConfirmLink(null);
 
     if (!form.username.trim() || !form.email.trim() || !form.password.trim()) {
       setError("Completa usuario, correo y contraseña.");
@@ -52,8 +50,7 @@ function RegisterPage() {
       if (!res.ok) {
         if (data?.code === "EMAIL_NOT_CONFIRMED" && typeof data?.email === "string") {
           setPendingEmail(data.email);
-          if (typeof data?.confirmLink === "string") setConfirmLink(data.confirmLink);
-          // Account exists unverified — show verify UI instead of a hard error.
+          if (typeof data.message === "string") setError(data.message);
           return;
         }
         throw new Error(data?.message ?? "No se pudo crear la cuenta");
@@ -61,7 +58,6 @@ function RegisterPage() {
 
       if (data?.needsEmailConfirmation) {
         setPendingEmail(typeof data.email === "string" ? data.email : form.email.trim().toLowerCase());
-        if (typeof data.confirmLink === "string") setConfirmLink(data.confirmLink);
         if (typeof data.message === "string" && data.emailSent === false) {
           setError(data.message);
         }
@@ -98,24 +94,19 @@ function RegisterPage() {
           }
         >
           <div className="space-y-4 text-sm text-muted-foreground">
-            <p>
-              Cuenta creada para{" "}
-              <span className="font-medium text-foreground">{pendingEmail}</span>.
-              Gmail a veces no muestra el correo: verifica aquí mismo.
-            </p>
             {error ? (
               <p className="text-sm text-amber-700 dark:text-amber-400">{error}</p>
-            ) : null}
-            {confirmLink ? (
-              <Button asChild className="h-11 w-full rounded-xl">
-                <a href={confirmLink}>Verificar ahora</a>
-              </Button>
             ) : (
               <p>
-                Ve a Iniciar sesión → «Reenviar correo de verificación» para obtener el enlace.
+                Te enviamos un enlace de verificación a{" "}
+                <span className="font-medium text-foreground">{pendingEmail}</span>.
               </p>
             )}
-            <Button asChild variant="outline" className="h-11 w-full rounded-xl">
+            <p>
+              Abre el correo, pulsa el enlace y luego inicia sesión. Si no llegó, revisa spam o usa
+              «Reenviar correo de verificación» en Iniciar sesión.
+            </p>
+            <Button asChild className="h-11 w-full rounded-xl">
               <Link to="/login">Ir a iniciar sesión</Link>
             </Button>
           </div>

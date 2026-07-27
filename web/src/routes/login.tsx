@@ -23,7 +23,6 @@ function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [needsConfirmation, setNeedsConfirmation] = useState(false);
-  const [confirmLink, setConfirmLink] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -92,7 +91,6 @@ function LoginPage() {
   const onResendConfirmation = async () => {
     setError(null);
     setInfo(null);
-    setConfirmLink(null);
 
     if (!form.email.trim() || !form.password.trim()) {
       setError("Escribe tu correo y contraseña para reenviar la verificación.");
@@ -115,13 +113,9 @@ function LoginPage() {
         throw new Error(data?.message ?? "No se pudo reenviar el correo.");
       }
 
-      setInfo(data?.message ?? "Listo.");
-      if (typeof data?.confirmLink === "string") {
-        setConfirmLink(data.confirmLink);
-      }
+      setInfo(data?.message ?? "Te reenviamos el correo de verificación.");
       if (data?.alreadyConfirmed) {
         setNeedsConfirmation(false);
-        setConfirmLink(null);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error inesperado");
@@ -186,22 +180,15 @@ function LoginPage() {
           {info ? <p className="text-sm text-olive-deep">{info}</p> : null}
 
           {needsConfirmation ? (
-            <div className="space-y-3">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={resending || loading}
-                onClick={() => void onResendConfirmation()}
-                className="h-11 w-full rounded-xl"
-              >
-                {resending ? "Preparando..." : "Obtener enlace de verificación"}
-              </Button>
-              {confirmLink ? (
-                <Button asChild className="h-11 w-full rounded-xl">
-                  <a href={confirmLink}>Verificar ahora</a>
-                </Button>
-              ) : null}
-            </div>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={resending || loading}
+              onClick={() => void onResendConfirmation()}
+              className="h-11 w-full rounded-xl"
+            >
+              {resending ? "Reenviando..." : "Reenviar correo de verificación"}
+            </Button>
           ) : null}
 
           <Button
