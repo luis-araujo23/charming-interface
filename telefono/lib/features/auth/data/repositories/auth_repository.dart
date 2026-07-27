@@ -56,6 +56,12 @@ class SupabaseAuthRepository {
     return '$_apiBaseUrl/api/auth/resend-confirmation';
   }
 
+  static String get _authForgotPasswordEndpoint {
+    const override = String.fromEnvironment('AUTH_FORGOT_PASSWORD_ENDPOINT');
+    if (override.isNotEmpty) return override;
+    return '$_apiBaseUrl/api/auth/forgot-password';
+  }
+
   Stream<AuthState> get authStateChanges => _client.auth.onAuthStateChange;
   User? get currentUser => _client.auth.currentUser;
 
@@ -292,14 +298,37 @@ class SupabaseAuthRepository {
     }
   }
 
-  Future<void> sendPasswordResetEmail({required String email}) async {
+  Future<String> requestPasswordReset({required String email}) async {
+    final normalizedEmail = email.trim().toLowerCase();
+    final uri = Uri.parse(_authForgotPasswordEndpoint);
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 15);
+    final request = await client.postUrl(uri);
+    request.headers.contentType = ContentType.json;
+    request.write(jsonEncode({'email': normalizedEmail}));
+
+    final response = await request.close();
+    final body = await response.transform(utf8.decoder).join();
+
+    Map<String, dynamic>? decoded;
     try {
-      final normalizedEmail = email.trim().toLowerCase();
-      await _client.auth.resetPasswordForEmail(normalizedEmail);
-    } catch (e, stack) {
-      AppLogger.error('AuthRepository: Error sending password reset email', e, stack);
-      rethrow;
+      final raw = jsonDecode(body);
+      if (raw is Map) decoded = Map<String, dynamic>.from(raw);
+    } catch (_) {}
+
+    if (response.statusCode == 200) {
+      return (decoded?['message'] as String?) ??
+          'Si ese correo tiene una cuenta, te enviamos un enlace. Revisa tu bandeja (y spam).';
     }
+
+    throw Exception(
+      (decoded?['message'] as String?) ??
+          'No se pudo enviar el correo de recuperación.',
+    );
+  }
+
+  @Deprecated('Use requestPasswordReset — goes through the web SMTP path')
+  Future<void> sendPasswordResetEmail({required String email}) async {
+    await requestPasswordReset(email: email);
   }
 }
 

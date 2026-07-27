@@ -294,6 +294,26 @@ function buildConfirmationEmailHtml(actionLink: string) {
   `;
 }
 
+function buildPasswordResetEmailHtml(actionLink: string) {
+  return `
+    <div style="font-family: Georgia, serif; max-width: 520px; margin: 0 auto; color: #1f2a1f;">
+      <h1 style="font-size: 28px; margin-bottom: 8px;">kitty</h1>
+      <p style="font-size: 16px; line-height: 1.5;">Recibimos una solicitud para restablecer tu contraseña.</p>
+      <p style="margin: 28px 0;">
+        <a href="${actionLink}"
+           style="display: inline-block; background: #3d4f3a; color: #fff; text-decoration: none; padding: 12px 20px; border-radius: 10px;">
+          Crear nueva contraseña
+        </a>
+      </p>
+      <p style="font-size: 13px; color: #5c6b5c; line-height: 1.5;">
+        Si el botón no funciona, copia y pega este enlace en el navegador:<br/>
+        <a href="${actionLink}" style="color: #3d4f3a; word-break: break-all;">${actionLink}</a>
+      </p>
+      <p style="font-size: 12px; color: #7a8a7a;">Si no pediste este cambio, ignora este mensaje. Tu contraseña no se modificará.</p>
+    </div>
+  `;
+}
+
 function getValidResendApiKey() {
   const apiKey = stripEnvQuotes(process.env.RESEND_API_KEY);
   if (!apiKey) return null;
@@ -338,9 +358,16 @@ function getSmtpConfig() {
   return { host, user, pass, port, secure: port === 465 };
 }
 
-async function sendConfirmationEmailWithResend(params: {
+export type MailSendResult = {
+  emailSent: boolean;
+  provider: "smtp" | "resend" | "both" | "none";
+  sendErrors: string[];
+};
+
+async function sendAppEmailWithResend(params: {
   email: string;
-  actionLink: string;
+  subject: string;
+  html: string;
   apiKey: string;
 }): Promise<{ provider: "resend"; id: string | null }> {
   // Resend rejects arbitrary Gmail "from" addresses unless the domain is verified.
@@ -363,8 +390,8 @@ async function sendConfirmationEmailWithResend(params: {
     body: JSON.stringify({
       from,
       to: [params.email.trim().toLowerCase()],
-      subject: "Verifica tu correo en Kitty",
-      html: buildConfirmationEmailHtml(params.actionLink),
+      subject: params.subject,
+      html: params.html,
     }),
   });
 
@@ -398,9 +425,10 @@ async function sendConfirmationEmailWithResend(params: {
   return { provider: "resend", id };
 }
 
-async function sendConfirmationEmailWithSmtp(params: {
+async function sendAppEmailWithSmtp(params: {
   email: string;
-  actionLink: string;
+  subject: string;
+  html: string;
 }): Promise<{ provider: "smtp"; messageId: string | null }> {
   const smtp = getSmtpConfig();
   if (!smtp) {
@@ -427,8 +455,8 @@ async function sendConfirmationEmailWithSmtp(params: {
   const info = await transporter.sendMail({
     from,
     to: params.email.trim().toLowerCase(),
-    subject: "Verifica tu correo en Kitty",
-    html: buildConfirmationEmailHtml(params.actionLink),
+    subject: params.subject,
+    html: params.html,
   });
 
   return {
@@ -437,11 +465,50 @@ async function sendConfirmationEmailWithSmtp(params: {
   };
 }
 
-export type MailSendResult = {
-  emailSent: boolean;
-  provider: "smtp" | "resend" | "both" | "none";
-  sendErrors: string[];
-};
+async function deliverAppEmail(params: {
+  email: string;
+  subject: string;
+  html: string;
+}): Promise<MailSendResult> {
+  const sendErrors: string[] = [];
+  let smtpOk = false;
+  let resendOk = false;
+
+  const resendKey = getValidResendApiKey();
+  if (resendKey) {
+    try {
+      await sendAppEmailWithResend({
+        email: params.email,
+        subject: params.subject,
+        html: params.html,
+        apiKey: resendKey,
+      });
+      resendOk = true;
+    } catch (e) {
+      sendErrors.push(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  try {
+    const smtp = getSmtpConfig();
+    if (smtp) {
+      await sendAppEmailWithSmtp({
+        email: params.email,
+        subject: params.subject,
+        html: params.html,
+      });
+      smtpOk = true;
+    }
+  } catch (e) {
+    sendErrors.push(e instanceof Error ? e.message : String(e));
+  }
+
+  const emailSent = smtpOk || resendOk;
+  const provider: MailSendResult["provider"] =
+    smtpOk && resendOk ? "both" : smtpOk ? "smtp" : resendOk ? "resend" : "none";
+
+  return { emailSent, provider, sendErrors };
+}
 
 /**
  * Builds the confirmation link and emails it (SMTP + Resend, best-effort).
@@ -459,43 +526,50 @@ export async function sendSignupConfirmationEmail(params: {
     emailRedirectTo: params.emailRedirectTo,
   });
 
-  const sendErrors: string[] = [];
-  let smtpOk = false;
-  let resendOk = false;
+  return deliverAppEmail({
+    email: params.email,
+    subject: "Verifica tu correo en Kitty",
+    html: buildConfirmationEmailHtml(confirmLink),
+  });
+}
 
-  // Try both free providers — one of them may land in the inbox.
-  const resendKey = getValidResendApiKey();
-  if (resendKey) {
-    try {
-      await sendConfirmationEmailWithResend({
-        email: params.email,
-        actionLink: confirmLink,
-        apiKey: resendKey,
-      });
-      resendOk = true;
-    } catch (e) {
-      sendErrors.push(e instanceof Error ? e.message : String(e));
-    }
+async function buildPasswordRecoveryLink(params: {
+  email: string;
+  emailRedirectTo: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const email = params.email.trim().toLowerCase();
+
+  const recovery = await admin.auth.admin.generateLink({
+    type: "recovery",
+    email,
+    options: { redirectTo: params.emailRedirectTo },
+  });
+
+  if (recovery.error || !recovery.data.properties?.action_link) {
+    throw recovery.error ?? new Error("No se pudo generar el enlace de recuperación.");
   }
 
-  try {
-    const smtp = getSmtpConfig();
-    if (smtp) {
-      await sendConfirmationEmailWithSmtp({
-        email: params.email,
-        actionLink: confirmLink,
-      });
-      smtpOk = true;
-    }
-  } catch (e) {
-    sendErrors.push(e instanceof Error ? e.message : String(e));
-  }
+  return recovery.data.properties.action_link;
+}
 
-  const emailSent = smtpOk || resendOk;
-  const provider: MailSendResult["provider"] =
-    smtpOk && resendOk ? "both" : smtpOk ? "smtp" : resendOk ? "resend" : "none";
+/**
+ * Sends a password-reset email via SMTP/Resend (same path as signup confirmation).
+ */
+export async function sendPasswordRecoveryEmail(params: {
+  email: string;
+  emailRedirectTo: string;
+}): Promise<MailSendResult> {
+  const actionLink = await buildPasswordRecoveryLink({
+    email: params.email,
+    emailRedirectTo: params.emailRedirectTo,
+  });
 
-  return { emailSent, provider, sendErrors };
+  return deliverAppEmail({
+    email: params.email,
+    subject: "Restablece tu contraseña en Kitty",
+    html: buildPasswordResetEmailHtml(actionLink),
+  });
 }
 
 /** Optional helper if some callers need an anon client later. */
@@ -518,7 +592,7 @@ export function getSupabaseAnon(): SupabaseClient {
   });
 }
 
-export function resolveEmailRedirectTo(request: Request) {
+export function resolveAppOrigin(request: Request) {
   const configured =
     process.env.APP_URL?.trim() ||
     process.env.PUBLIC_APP_URL?.trim() ||
@@ -536,8 +610,6 @@ export function resolveEmailRedirectTo(request: Request) {
   const origin = (configured || vercelOrigin || request.headers.get("origin") || new URL(request.url).origin)
     .replace(/\/$/, "");
 
-  const redirectTo = `${origin}/auth/confirmed`;
-
   // localhost in the email link only works on the same machine that runs the
   // server — phones will show ERR_CONNECTION_REFUSED. Prefer a public URL.
   if (/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/i.test(origin)) {
@@ -546,5 +618,13 @@ export function resolveEmailRedirectTo(request: Request) {
     );
   }
 
-  return redirectTo;
+  return origin;
+}
+
+export function resolveEmailRedirectTo(request: Request) {
+  return `${resolveAppOrigin(request)}/auth/confirmed`;
+}
+
+export function resolvePasswordResetRedirectTo(request: Request) {
+  return `${resolveAppOrigin(request)}/auth/reset-password`;
 }

@@ -9,44 +9,58 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as RegisterRouteImport } from './routes/register'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthConfirmedRouteImport } from './routes/auth.confirmed'
-import { Route as ApiTaggedRouteImport } from './routes/api/tagged'
-import { Route as ApiStreaksRouteImport } from './routes/api/streaks'
-import { Route as ApiMemoriesRouteImport } from './routes/api/memories'
-import { Route as ApiFriendsRouteImport } from './routes/api/friends'
-import { Route as ApiDiaryRouteImport } from './routes/api/diary'
-import { Route as AppTaggedRouteImport } from './routes/_app.tagged'
-import { Route as AppStreaksRouteImport } from './routes/_app.streaks'
-import { Route as AppSearchRouteImport } from './routes/_app.search'
-import { Route as AppMemoriesRouteImport } from './routes/_app.memories'
-import { Route as AppFriendsRouteImport } from './routes/_app.friends'
-import { Route as AppDiaryRouteImport } from './routes/_app.diary'
+import { Route as AppRouteImport } from './routes/_app'
+import { Route as ForgotPasswordRouteImport } from './routes/forgot-password'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as RegisterRouteImport } from './routes/register'
 import { Route as AppCalendarRouteImport } from './routes/_app.calendar'
-import { Route as ApiTaggedTagRouteImport } from './routes/api/tagged/tag'
-import { Route as ApiTaggedMessagesRouteImport } from './routes/api/tagged/messages'
-import { Route as ApiFriendsSearchRouteImport } from './routes/api/friends/search'
-import { Route as ApiFriendsRespondRouteImport } from './routes/api/friends/respond'
-import { Route as ApiFriendsRequestRouteImport } from './routes/api/friends/request'
-import { Route as ApiFriendsDeleteRouteImport } from './routes/api/friends/delete'
-import { Route as ApiFriendsCancelRouteImport } from './routes/api/friends/cancel'
-import { Route as ApiDiarySearchRouteImport } from './routes/api/diary/search'
-import { Route as ApiDiaryPhotosRouteImport } from './routes/api/diary/photos'
-import { Route as ApiDiaryCalendarRouteImport } from './routes/api/diary/calendar'
-import { Route as ApiAuthSyncRouteImport } from './routes/api/auth/sync'
-import { Route as ApiAuthSessionRouteImport } from './routes/api/auth/session'
-import { Route as ApiAuthResendConfirmationRouteImport } from './routes/api/auth/resend-confirmation'
-import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
-import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
-import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
+import { Route as AppDiaryRouteImport } from './routes/_app.diary'
+import { Route as AppFriendsRouteImport } from './routes/_app.friends'
+import { Route as AppMemoriesRouteImport } from './routes/_app.memories'
+import { Route as AppSearchRouteImport } from './routes/_app.search'
+import { Route as AppStreaksRouteImport } from './routes/_app.streaks'
+import { Route as AppTaggedRouteImport } from './routes/_app.tagged'
+import { Route as ApiDiaryRouteImport } from './routes/api/diary'
+import { Route as ApiFriendsRouteImport } from './routes/api/friends'
+import { Route as ApiMemoriesRouteImport } from './routes/api/memories'
+import { Route as ApiStreaksRouteImport } from './routes/api/streaks'
+import { Route as ApiTaggedRouteImport } from './routes/api/tagged'
+import { Route as AuthConfirmedRouteImport } from './routes/auth.confirmed'
+import { Route as AuthResetPasswordRouteImport } from './routes/auth.reset-password'
 import { Route as ApiAuthConfirmFromSessionRouteImport } from './routes/api/auth/confirm-from-session'
+import { Route as ApiAuthForgotPasswordRouteImport } from './routes/api/auth/forgot-password'
+import { Route as ApiAuthLoginRouteImport } from './routes/api/auth/login'
+import { Route as ApiAuthLogoutRouteImport } from './routes/api/auth/logout'
+import { Route as ApiAuthMailHealthRouteImport } from './routes/api/auth/mail-health'
+import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
+import { Route as ApiAuthResendConfirmationRouteImport } from './routes/api/auth/resend-confirmation'
+import { Route as ApiAuthResetPasswordRouteImport } from './routes/api/auth/reset-password'
+import { Route as ApiAuthSessionRouteImport } from './routes/api/auth/session'
+import { Route as ApiAuthSyncRouteImport } from './routes/api/auth/sync'
+import { Route as ApiDiaryCalendarRouteImport } from './routes/api/diary/calendar'
+import { Route as ApiDiaryPhotosRouteImport } from './routes/api/diary/photos'
+import { Route as ApiDiarySearchRouteImport } from './routes/api/diary/search'
+import { Route as ApiFriendsCancelRouteImport } from './routes/api/friends/cancel'
+import { Route as ApiFriendsDeleteRouteImport } from './routes/api/friends/delete'
+import { Route as ApiFriendsRequestRouteImport } from './routes/api/friends/request'
+import { Route as ApiFriendsRespondRouteImport } from './routes/api/friends/respond'
+import { Route as ApiFriendsSearchRouteImport } from './routes/api/friends/search'
+import { Route as ApiTaggedMessagesRouteImport } from './routes/api/tagged/messages'
+import { Route as ApiTaggedTagRouteImport } from './routes/api/tagged/tag'
 
-const RegisterRoute = RegisterRouteImport.update({
-  id: '/register',
-  path: '/register',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForgotPasswordRoute = ForgotPasswordRouteImport.update({
+  id: '/forgot-password',
+  path: '/forgot-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -54,68 +68,14 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppRoute = AppRouteImport.update({
-  id: '/_app',
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthConfirmedRoute = AuthConfirmedRouteImport.update({
-  id: '/auth/confirmed',
-  path: '/auth/confirmed',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiTaggedRoute = ApiTaggedRouteImport.update({
-  id: '/api/tagged',
-  path: '/api/tagged',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiStreaksRoute = ApiStreaksRouteImport.update({
-  id: '/api/streaks',
-  path: '/api/streaks',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiMemoriesRoute = ApiMemoriesRouteImport.update({
-  id: '/api/memories',
-  path: '/api/memories',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiFriendsRoute = ApiFriendsRouteImport.update({
-  id: '/api/friends',
-  path: '/api/friends',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiDiaryRoute = ApiDiaryRouteImport.update({
-  id: '/api/diary',
-  path: '/api/diary',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AppTaggedRoute = AppTaggedRouteImport.update({
-  id: '/tagged',
-  path: '/tagged',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppStreaksRoute = AppStreaksRouteImport.update({
-  id: '/streaks',
-  path: '/streaks',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppSearchRoute = AppSearchRouteImport.update({
-  id: '/search',
-  path: '/search',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppMemoriesRoute = AppMemoriesRouteImport.update({
-  id: '/memories',
-  path: '/memories',
-  getParentRoute: () => AppRoute,
-} as any)
-const AppFriendsRoute = AppFriendsRouteImport.update({
-  id: '/friends',
-  path: '/friends',
+const AppCalendarRoute = AppCalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
   getParentRoute: () => AppRoute,
 } as any)
 const AppDiaryRoute = AppDiaryRouteImport.update({
@@ -123,90 +83,64 @@ const AppDiaryRoute = AppDiaryRouteImport.update({
   path: '/diary',
   getParentRoute: () => AppRoute,
 } as any)
-const AppCalendarRoute = AppCalendarRouteImport.update({
-  id: '/calendar',
-  path: '/calendar',
+const AppFriendsRoute = AppFriendsRouteImport.update({
+  id: '/friends',
+  path: '/friends',
   getParentRoute: () => AppRoute,
 } as any)
-const ApiTaggedTagRoute = ApiTaggedTagRouteImport.update({
-  id: '/tag',
-  path: '/tag',
-  getParentRoute: () => ApiTaggedRoute,
+const AppMemoriesRoute = AppMemoriesRouteImport.update({
+  id: '/memories',
+  path: '/memories',
+  getParentRoute: () => AppRoute,
 } as any)
-const ApiTaggedMessagesRoute = ApiTaggedMessagesRouteImport.update({
-  id: '/messages',
-  path: '/messages',
-  getParentRoute: () => ApiTaggedRoute,
-} as any)
-const ApiFriendsSearchRoute = ApiFriendsSearchRouteImport.update({
+const AppSearchRoute = AppSearchRouteImport.update({
   id: '/search',
   path: '/search',
-  getParentRoute: () => ApiFriendsRoute,
+  getParentRoute: () => AppRoute,
 } as any)
-const ApiFriendsRespondRoute = ApiFriendsRespondRouteImport.update({
-  id: '/respond',
-  path: '/respond',
-  getParentRoute: () => ApiFriendsRoute,
+const AppStreaksRoute = AppStreaksRouteImport.update({
+  id: '/streaks',
+  path: '/streaks',
+  getParentRoute: () => AppRoute,
 } as any)
-const ApiFriendsRequestRoute = ApiFriendsRequestRouteImport.update({
-  id: '/request',
-  path: '/request',
-  getParentRoute: () => ApiFriendsRoute,
+const AppTaggedRoute = AppTaggedRouteImport.update({
+  id: '/tagged',
+  path: '/tagged',
+  getParentRoute: () => AppRoute,
 } as any)
-const ApiFriendsDeleteRoute = ApiFriendsDeleteRouteImport.update({
-  id: '/delete',
-  path: '/delete',
-  getParentRoute: () => ApiFriendsRoute,
-} as any)
-const ApiFriendsCancelRoute = ApiFriendsCancelRouteImport.update({
-  id: '/cancel',
-  path: '/cancel',
-  getParentRoute: () => ApiFriendsRoute,
-} as any)
-const ApiDiarySearchRoute = ApiDiarySearchRouteImport.update({
-  id: '/search',
-  path: '/search',
-  getParentRoute: () => ApiDiaryRoute,
-} as any)
-const ApiDiaryPhotosRoute = ApiDiaryPhotosRouteImport.update({
-  id: '/photos',
-  path: '/photos',
-  getParentRoute: () => ApiDiaryRoute,
-} as any)
-const ApiDiaryCalendarRoute = ApiDiaryCalendarRouteImport.update({
-  id: '/calendar',
-  path: '/calendar',
-  getParentRoute: () => ApiDiaryRoute,
-} as any)
-const ApiAuthSyncRoute = ApiAuthSyncRouteImport.update({
-  id: '/api/auth/sync',
-  path: '/api/auth/sync',
+const ApiDiaryRoute = ApiDiaryRouteImport.update({
+  id: '/api/diary',
+  path: '/api/diary',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAuthSessionRoute = ApiAuthSessionRouteImport.update({
-  id: '/api/auth/session',
-  path: '/api/auth/session',
+const ApiFriendsRoute = ApiFriendsRouteImport.update({
+  id: '/api/friends',
+  path: '/api/friends',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAuthResendConfirmationRoute =
-  ApiAuthResendConfirmationRouteImport.update({
-    id: '/api/auth/resend-confirmation',
-    path: '/api/auth/resend-confirmation',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiAuthRegisterRoute = ApiAuthRegisterRouteImport.update({
-  id: '/api/auth/register',
-  path: '/api/auth/register',
+const ApiMemoriesRoute = ApiMemoriesRouteImport.update({
+  id: '/api/memories',
+  path: '/api/memories',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAuthLogoutRoute = ApiAuthLogoutRouteImport.update({
-  id: '/api/auth/logout',
-  path: '/api/auth/logout',
+const ApiStreaksRoute = ApiStreaksRouteImport.update({
+  id: '/api/streaks',
+  path: '/api/streaks',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
-  id: '/api/auth/login',
-  path: '/api/auth/login',
+const ApiTaggedRoute = ApiTaggedRouteImport.update({
+  id: '/api/tagged',
+  path: '/api/tagged',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthConfirmedRoute = AuthConfirmedRouteImport.update({
+  id: '/auth/confirmed',
+  path: '/auth/confirmed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
+  id: '/auth/reset-password',
+  path: '/auth/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthConfirmFromSessionRoute =
@@ -215,9 +149,106 @@ const ApiAuthConfirmFromSessionRoute =
     path: '/api/auth/confirm-from-session',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiAuthForgotPasswordRoute = ApiAuthForgotPasswordRouteImport.update({
+  id: '/api/auth/forgot-password',
+  path: '/api/auth/forgot-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLoginRoute = ApiAuthLoginRouteImport.update({
+  id: '/api/auth/login',
+  path: '/api/auth/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthLogoutRoute = ApiAuthLogoutRouteImport.update({
+  id: '/api/auth/logout',
+  path: '/api/auth/logout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthMailHealthRoute = ApiAuthMailHealthRouteImport.update({
+  id: '/api/auth/mail-health',
+  path: '/api/auth/mail-health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthRegisterRoute = ApiAuthRegisterRouteImport.update({
+  id: '/api/auth/register',
+  path: '/api/auth/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthResendConfirmationRoute =
+  ApiAuthResendConfirmationRouteImport.update({
+    id: '/api/auth/resend-confirmation',
+    path: '/api/auth/resend-confirmation',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiAuthResetPasswordRoute = ApiAuthResetPasswordRouteImport.update({
+  id: '/api/auth/reset-password',
+  path: '/api/auth/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthSessionRoute = ApiAuthSessionRouteImport.update({
+  id: '/api/auth/session',
+  path: '/api/auth/session',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthSyncRoute = ApiAuthSyncRouteImport.update({
+  id: '/api/auth/sync',
+  path: '/api/auth/sync',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiDiaryCalendarRoute = ApiDiaryCalendarRouteImport.update({
+  id: '/calendar',
+  path: '/calendar',
+  getParentRoute: () => ApiDiaryRoute,
+} as any)
+const ApiDiaryPhotosRoute = ApiDiaryPhotosRouteImport.update({
+  id: '/photos',
+  path: '/photos',
+  getParentRoute: () => ApiDiaryRoute,
+} as any)
+const ApiDiarySearchRoute = ApiDiarySearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => ApiDiaryRoute,
+} as any)
+const ApiFriendsCancelRoute = ApiFriendsCancelRouteImport.update({
+  id: '/cancel',
+  path: '/cancel',
+  getParentRoute: () => ApiFriendsRoute,
+} as any)
+const ApiFriendsDeleteRoute = ApiFriendsDeleteRouteImport.update({
+  id: '/delete',
+  path: '/delete',
+  getParentRoute: () => ApiFriendsRoute,
+} as any)
+const ApiFriendsRequestRoute = ApiFriendsRequestRouteImport.update({
+  id: '/request',
+  path: '/request',
+  getParentRoute: () => ApiFriendsRoute,
+} as any)
+const ApiFriendsRespondRoute = ApiFriendsRespondRouteImport.update({
+  id: '/respond',
+  path: '/respond',
+  getParentRoute: () => ApiFriendsRoute,
+} as any)
+const ApiFriendsSearchRoute = ApiFriendsSearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => ApiFriendsRoute,
+} as any)
+const ApiTaggedMessagesRoute = ApiTaggedMessagesRouteImport.update({
+  id: '/messages',
+  path: '/messages',
+  getParentRoute: () => ApiTaggedRoute,
+} as any)
+const ApiTaggedTagRoute = ApiTaggedTagRouteImport.update({
+  id: '/tag',
+  path: '/tag',
+  getParentRoute: () => ApiTaggedRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/calendar': typeof AppCalendarRoute
@@ -233,11 +264,15 @@ export interface FileRoutesByFullPath {
   '/api/streaks': typeof ApiStreaksRoute
   '/api/tagged': typeof ApiTaggedRouteWithChildren
   '/auth/confirmed': typeof AuthConfirmedRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
   '/api/auth/confirm-from-session': typeof ApiAuthConfirmFromSessionRoute
+  '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/mail-health': typeof ApiAuthMailHealthRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/resend-confirmation': typeof ApiAuthResendConfirmationRoute
+  '/api/auth/reset-password': typeof ApiAuthResetPasswordRoute
   '/api/auth/session': typeof ApiAuthSessionRoute
   '/api/auth/sync': typeof ApiAuthSyncRoute
   '/api/diary/calendar': typeof ApiDiaryCalendarRoute
@@ -253,6 +288,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/calendar': typeof AppCalendarRoute
@@ -268,11 +304,15 @@ export interface FileRoutesByTo {
   '/api/streaks': typeof ApiStreaksRoute
   '/api/tagged': typeof ApiTaggedRouteWithChildren
   '/auth/confirmed': typeof AuthConfirmedRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
   '/api/auth/confirm-from-session': typeof ApiAuthConfirmFromSessionRoute
+  '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/mail-health': typeof ApiAuthMailHealthRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/resend-confirmation': typeof ApiAuthResendConfirmationRoute
+  '/api/auth/reset-password': typeof ApiAuthResetPasswordRoute
   '/api/auth/session': typeof ApiAuthSessionRoute
   '/api/auth/sync': typeof ApiAuthSyncRoute
   '/api/diary/calendar': typeof ApiDiaryCalendarRoute
@@ -290,6 +330,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
+  '/forgot-password': typeof ForgotPasswordRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/_app/calendar': typeof AppCalendarRoute
@@ -305,11 +346,15 @@ export interface FileRoutesById {
   '/api/streaks': typeof ApiStreaksRoute
   '/api/tagged': typeof ApiTaggedRouteWithChildren
   '/auth/confirmed': typeof AuthConfirmedRoute
+  '/auth/reset-password': typeof AuthResetPasswordRoute
   '/api/auth/confirm-from-session': typeof ApiAuthConfirmFromSessionRoute
+  '/api/auth/forgot-password': typeof ApiAuthForgotPasswordRoute
   '/api/auth/login': typeof ApiAuthLoginRoute
   '/api/auth/logout': typeof ApiAuthLogoutRoute
+  '/api/auth/mail-health': typeof ApiAuthMailHealthRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/auth/resend-confirmation': typeof ApiAuthResendConfirmationRoute
+  '/api/auth/reset-password': typeof ApiAuthResetPasswordRoute
   '/api/auth/session': typeof ApiAuthSessionRoute
   '/api/auth/sync': typeof ApiAuthSyncRoute
   '/api/diary/calendar': typeof ApiDiaryCalendarRoute
@@ -327,6 +372,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/forgot-password'
     | '/login'
     | '/register'
     | '/calendar'
@@ -342,11 +388,15 @@ export interface FileRouteTypes {
     | '/api/streaks'
     | '/api/tagged'
     | '/auth/confirmed'
+    | '/auth/reset-password'
     | '/api/auth/confirm-from-session'
+    | '/api/auth/forgot-password'
     | '/api/auth/login'
     | '/api/auth/logout'
+    | '/api/auth/mail-health'
     | '/api/auth/register'
     | '/api/auth/resend-confirmation'
+    | '/api/auth/reset-password'
     | '/api/auth/session'
     | '/api/auth/sync'
     | '/api/diary/calendar'
@@ -362,6 +412,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/forgot-password'
     | '/login'
     | '/register'
     | '/calendar'
@@ -377,11 +428,15 @@ export interface FileRouteTypes {
     | '/api/streaks'
     | '/api/tagged'
     | '/auth/confirmed'
+    | '/auth/reset-password'
     | '/api/auth/confirm-from-session'
+    | '/api/auth/forgot-password'
     | '/api/auth/login'
     | '/api/auth/logout'
+    | '/api/auth/mail-health'
     | '/api/auth/register'
     | '/api/auth/resend-confirmation'
+    | '/api/auth/reset-password'
     | '/api/auth/session'
     | '/api/auth/sync'
     | '/api/diary/calendar'
@@ -398,6 +453,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/_app'
+    | '/forgot-password'
     | '/login'
     | '/register'
     | '/_app/calendar'
@@ -413,11 +469,15 @@ export interface FileRouteTypes {
     | '/api/streaks'
     | '/api/tagged'
     | '/auth/confirmed'
+    | '/auth/reset-password'
     | '/api/auth/confirm-from-session'
+    | '/api/auth/forgot-password'
     | '/api/auth/login'
     | '/api/auth/logout'
+    | '/api/auth/mail-health'
     | '/api/auth/register'
     | '/api/auth/resend-confirmation'
+    | '/api/auth/reset-password'
     | '/api/auth/session'
     | '/api/auth/sync'
     | '/api/diary/calendar'
@@ -435,6 +495,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
+  ForgotPasswordRoute: typeof ForgotPasswordRoute
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
   ApiDiaryRoute: typeof ApiDiaryRouteWithChildren
@@ -443,29 +504,26 @@ export interface RootRouteChildren {
   ApiStreaksRoute: typeof ApiStreaksRoute
   ApiTaggedRoute: typeof ApiTaggedRouteWithChildren
   AuthConfirmedRoute: typeof AuthConfirmedRoute
+  AuthResetPasswordRoute: typeof AuthResetPasswordRoute
   ApiAuthConfirmFromSessionRoute: typeof ApiAuthConfirmFromSessionRoute
+  ApiAuthForgotPasswordRoute: typeof ApiAuthForgotPasswordRoute
   ApiAuthLoginRoute: typeof ApiAuthLoginRoute
   ApiAuthLogoutRoute: typeof ApiAuthLogoutRoute
+  ApiAuthMailHealthRoute: typeof ApiAuthMailHealthRoute
   ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
   ApiAuthResendConfirmationRoute: typeof ApiAuthResendConfirmationRoute
+  ApiAuthResetPasswordRoute: typeof ApiAuthResetPasswordRoute
   ApiAuthSessionRoute: typeof ApiAuthSessionRoute
   ApiAuthSyncRoute: typeof ApiAuthSyncRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/register': {
-      id: '/register'
-      path: '/register'
-      fullPath: '/register'
-      preLoaderRoute: typeof RegisterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_app': {
@@ -475,88 +533,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/forgot-password': {
+      id: '/forgot-password'
+      path: '/forgot-password'
+      fullPath: '/forgot-password'
+      preLoaderRoute: typeof ForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/auth/confirmed': {
-      id: '/auth/confirmed'
-      path: '/auth/confirmed'
-      fullPath: '/auth/confirmed'
-      preLoaderRoute: typeof AuthConfirmedRouteImport
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/tagged': {
-      id: '/api/tagged'
-      path: '/api/tagged'
-      fullPath: '/api/tagged'
-      preLoaderRoute: typeof ApiTaggedRouteImport
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/streaks': {
-      id: '/api/streaks'
-      path: '/api/streaks'
-      fullPath: '/api/streaks'
-      preLoaderRoute: typeof ApiStreaksRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/memories': {
-      id: '/api/memories'
-      path: '/api/memories'
-      fullPath: '/api/memories'
-      preLoaderRoute: typeof ApiMemoriesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/friends': {
-      id: '/api/friends'
-      path: '/api/friends'
-      fullPath: '/api/friends'
-      preLoaderRoute: typeof ApiFriendsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/diary': {
-      id: '/api/diary'
-      path: '/api/diary'
-      fullPath: '/api/diary'
-      preLoaderRoute: typeof ApiDiaryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_app/tagged': {
-      id: '/_app/tagged'
-      path: '/tagged'
-      fullPath: '/tagged'
-      preLoaderRoute: typeof AppTaggedRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/streaks': {
-      id: '/_app/streaks'
-      path: '/streaks'
-      fullPath: '/streaks'
-      preLoaderRoute: typeof AppStreaksRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/search': {
-      id: '/_app/search'
-      path: '/search'
-      fullPath: '/search'
-      preLoaderRoute: typeof AppSearchRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/memories': {
-      id: '/_app/memories'
-      path: '/memories'
-      fullPath: '/memories'
-      preLoaderRoute: typeof AppMemoriesRouteImport
-      parentRoute: typeof AppRoute
-    }
-    '/_app/friends': {
-      id: '/_app/friends'
-      path: '/friends'
-      fullPath: '/friends'
-      preLoaderRoute: typeof AppFriendsRouteImport
+    '/_app/calendar': {
+      id: '/_app/calendar'
+      path: '/calendar'
+      fullPath: '/calendar'
+      preLoaderRoute: typeof AppCalendarRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/diary': {
@@ -566,116 +568,102 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDiaryRouteImport
       parentRoute: typeof AppRoute
     }
-    '/_app/calendar': {
-      id: '/_app/calendar'
-      path: '/calendar'
-      fullPath: '/calendar'
-      preLoaderRoute: typeof AppCalendarRouteImport
+    '/_app/friends': {
+      id: '/_app/friends'
+      path: '/friends'
+      fullPath: '/friends'
+      preLoaderRoute: typeof AppFriendsRouteImport
       parentRoute: typeof AppRoute
     }
-    '/api/tagged/tag': {
-      id: '/api/tagged/tag'
-      path: '/tag'
-      fullPath: '/api/tagged/tag'
-      preLoaderRoute: typeof ApiTaggedTagRouteImport
-      parentRoute: typeof ApiTaggedRoute
+    '/_app/memories': {
+      id: '/_app/memories'
+      path: '/memories'
+      fullPath: '/memories'
+      preLoaderRoute: typeof AppMemoriesRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/api/tagged/messages': {
-      id: '/api/tagged/messages'
-      path: '/messages'
-      fullPath: '/api/tagged/messages'
-      preLoaderRoute: typeof ApiTaggedMessagesRouteImport
-      parentRoute: typeof ApiTaggedRoute
-    }
-    '/api/friends/search': {
-      id: '/api/friends/search'
+    '/_app/search': {
+      id: '/_app/search'
       path: '/search'
-      fullPath: '/api/friends/search'
-      preLoaderRoute: typeof ApiFriendsSearchRouteImport
-      parentRoute: typeof ApiFriendsRoute
+      fullPath: '/search'
+      preLoaderRoute: typeof AppSearchRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/api/friends/respond': {
-      id: '/api/friends/respond'
-      path: '/respond'
-      fullPath: '/api/friends/respond'
-      preLoaderRoute: typeof ApiFriendsRespondRouteImport
-      parentRoute: typeof ApiFriendsRoute
+    '/_app/streaks': {
+      id: '/_app/streaks'
+      path: '/streaks'
+      fullPath: '/streaks'
+      preLoaderRoute: typeof AppStreaksRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/api/friends/request': {
-      id: '/api/friends/request'
-      path: '/request'
-      fullPath: '/api/friends/request'
-      preLoaderRoute: typeof ApiFriendsRequestRouteImport
-      parentRoute: typeof ApiFriendsRoute
+    '/_app/tagged': {
+      id: '/_app/tagged'
+      path: '/tagged'
+      fullPath: '/tagged'
+      preLoaderRoute: typeof AppTaggedRouteImport
+      parentRoute: typeof AppRoute
     }
-    '/api/friends/delete': {
-      id: '/api/friends/delete'
-      path: '/delete'
-      fullPath: '/api/friends/delete'
-      preLoaderRoute: typeof ApiFriendsDeleteRouteImport
-      parentRoute: typeof ApiFriendsRoute
-    }
-    '/api/friends/cancel': {
-      id: '/api/friends/cancel'
-      path: '/cancel'
-      fullPath: '/api/friends/cancel'
-      preLoaderRoute: typeof ApiFriendsCancelRouteImport
-      parentRoute: typeof ApiFriendsRoute
-    }
-    '/api/diary/search': {
-      id: '/api/diary/search'
-      path: '/search'
-      fullPath: '/api/diary/search'
-      preLoaderRoute: typeof ApiDiarySearchRouteImport
-      parentRoute: typeof ApiDiaryRoute
-    }
-    '/api/diary/photos': {
-      id: '/api/diary/photos'
-      path: '/photos'
-      fullPath: '/api/diary/photos'
-      preLoaderRoute: typeof ApiDiaryPhotosRouteImport
-      parentRoute: typeof ApiDiaryRoute
-    }
-    '/api/diary/calendar': {
-      id: '/api/diary/calendar'
-      path: '/calendar'
-      fullPath: '/api/diary/calendar'
-      preLoaderRoute: typeof ApiDiaryCalendarRouteImport
-      parentRoute: typeof ApiDiaryRoute
-    }
-    '/api/auth/sync': {
-      id: '/api/auth/sync'
-      path: '/api/auth/sync'
-      fullPath: '/api/auth/sync'
-      preLoaderRoute: typeof ApiAuthSyncRouteImport
+    '/api/diary': {
+      id: '/api/diary'
+      path: '/api/diary'
+      fullPath: '/api/diary'
+      preLoaderRoute: typeof ApiDiaryRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/auth/session': {
-      id: '/api/auth/session'
-      path: '/api/auth/session'
-      fullPath: '/api/auth/session'
-      preLoaderRoute: typeof ApiAuthSessionRouteImport
+    '/api/friends': {
+      id: '/api/friends'
+      path: '/api/friends'
+      fullPath: '/api/friends'
+      preLoaderRoute: typeof ApiFriendsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/auth/resend-confirmation': {
-      id: '/api/auth/resend-confirmation'
-      path: '/api/auth/resend-confirmation'
-      fullPath: '/api/auth/resend-confirmation'
-      preLoaderRoute: typeof ApiAuthResendConfirmationRouteImport
+    '/api/memories': {
+      id: '/api/memories'
+      path: '/api/memories'
+      fullPath: '/api/memories'
+      preLoaderRoute: typeof ApiMemoriesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/auth/register': {
-      id: '/api/auth/register'
-      path: '/api/auth/register'
-      fullPath: '/api/auth/register'
-      preLoaderRoute: typeof ApiAuthRegisterRouteImport
+    '/api/streaks': {
+      id: '/api/streaks'
+      path: '/api/streaks'
+      fullPath: '/api/streaks'
+      preLoaderRoute: typeof ApiStreaksRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/auth/logout': {
-      id: '/api/auth/logout'
-      path: '/api/auth/logout'
-      fullPath: '/api/auth/logout'
-      preLoaderRoute: typeof ApiAuthLogoutRouteImport
+    '/api/tagged': {
+      id: '/api/tagged'
+      path: '/api/tagged'
+      fullPath: '/api/tagged'
+      preLoaderRoute: typeof ApiTaggedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/confirmed': {
+      id: '/auth/confirmed'
+      path: '/auth/confirmed'
+      fullPath: '/auth/confirmed'
+      preLoaderRoute: typeof AuthConfirmedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/reset-password': {
+      id: '/auth/reset-password'
+      path: '/auth/reset-password'
+      fullPath: '/auth/reset-password'
+      preLoaderRoute: typeof AuthResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/confirm-from-session': {
+      id: '/api/auth/confirm-from-session'
+      path: '/api/auth/confirm-from-session'
+      fullPath: '/api/auth/confirm-from-session'
+      preLoaderRoute: typeof ApiAuthConfirmFromSessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/forgot-password': {
+      id: '/api/auth/forgot-password'
+      path: '/api/auth/forgot-password'
+      fullPath: '/api/auth/forgot-password'
+      preLoaderRoute: typeof ApiAuthForgotPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/login': {
@@ -685,12 +673,124 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/auth/confirm-from-session': {
-      id: '/api/auth/confirm-from-session'
-      path: '/api/auth/confirm-from-session'
-      fullPath: '/api/auth/confirm-from-session'
-      preLoaderRoute: typeof ApiAuthConfirmFromSessionRouteImport
+    '/api/auth/logout': {
+      id: '/api/auth/logout'
+      path: '/api/auth/logout'
+      fullPath: '/api/auth/logout'
+      preLoaderRoute: typeof ApiAuthLogoutRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/mail-health': {
+      id: '/api/auth/mail-health'
+      path: '/api/auth/mail-health'
+      fullPath: '/api/auth/mail-health'
+      preLoaderRoute: typeof ApiAuthMailHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/register': {
+      id: '/api/auth/register'
+      path: '/api/auth/register'
+      fullPath: '/api/auth/register'
+      preLoaderRoute: typeof ApiAuthRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/resend-confirmation': {
+      id: '/api/auth/resend-confirmation'
+      path: '/api/auth/resend-confirmation'
+      fullPath: '/api/auth/resend-confirmation'
+      preLoaderRoute: typeof ApiAuthResendConfirmationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/reset-password': {
+      id: '/api/auth/reset-password'
+      path: '/api/auth/reset-password'
+      fullPath: '/api/auth/reset-password'
+      preLoaderRoute: typeof ApiAuthResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/session': {
+      id: '/api/auth/session'
+      path: '/api/auth/session'
+      fullPath: '/api/auth/session'
+      preLoaderRoute: typeof ApiAuthSessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/sync': {
+      id: '/api/auth/sync'
+      path: '/api/auth/sync'
+      fullPath: '/api/auth/sync'
+      preLoaderRoute: typeof ApiAuthSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/diary/calendar': {
+      id: '/api/diary/calendar'
+      path: '/calendar'
+      fullPath: '/api/diary/calendar'
+      preLoaderRoute: typeof ApiDiaryCalendarRouteImport
+      parentRoute: typeof ApiDiaryRoute
+    }
+    '/api/diary/photos': {
+      id: '/api/diary/photos'
+      path: '/photos'
+      fullPath: '/api/diary/photos'
+      preLoaderRoute: typeof ApiDiaryPhotosRouteImport
+      parentRoute: typeof ApiDiaryRoute
+    }
+    '/api/diary/search': {
+      id: '/api/diary/search'
+      path: '/search'
+      fullPath: '/api/diary/search'
+      preLoaderRoute: typeof ApiDiarySearchRouteImport
+      parentRoute: typeof ApiDiaryRoute
+    }
+    '/api/friends/cancel': {
+      id: '/api/friends/cancel'
+      path: '/cancel'
+      fullPath: '/api/friends/cancel'
+      preLoaderRoute: typeof ApiFriendsCancelRouteImport
+      parentRoute: typeof ApiFriendsRoute
+    }
+    '/api/friends/delete': {
+      id: '/api/friends/delete'
+      path: '/delete'
+      fullPath: '/api/friends/delete'
+      preLoaderRoute: typeof ApiFriendsDeleteRouteImport
+      parentRoute: typeof ApiFriendsRoute
+    }
+    '/api/friends/request': {
+      id: '/api/friends/request'
+      path: '/request'
+      fullPath: '/api/friends/request'
+      preLoaderRoute: typeof ApiFriendsRequestRouteImport
+      parentRoute: typeof ApiFriendsRoute
+    }
+    '/api/friends/respond': {
+      id: '/api/friends/respond'
+      path: '/respond'
+      fullPath: '/api/friends/respond'
+      preLoaderRoute: typeof ApiFriendsRespondRouteImport
+      parentRoute: typeof ApiFriendsRoute
+    }
+    '/api/friends/search': {
+      id: '/api/friends/search'
+      path: '/search'
+      fullPath: '/api/friends/search'
+      preLoaderRoute: typeof ApiFriendsSearchRouteImport
+      parentRoute: typeof ApiFriendsRoute
+    }
+    '/api/tagged/messages': {
+      id: '/api/tagged/messages'
+      path: '/messages'
+      fullPath: '/api/tagged/messages'
+      preLoaderRoute: typeof ApiTaggedMessagesRouteImport
+      parentRoute: typeof ApiTaggedRoute
+    }
+    '/api/tagged/tag': {
+      id: '/api/tagged/tag'
+      path: '/tag'
+      fullPath: '/api/tagged/tag'
+      preLoaderRoute: typeof ApiTaggedTagRouteImport
+      parentRoute: typeof ApiTaggedRoute
     }
   }
 }
@@ -770,6 +870,7 @@ const ApiTaggedRouteWithChildren = ApiTaggedRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
+  ForgotPasswordRoute: ForgotPasswordRoute,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,
   ApiDiaryRoute: ApiDiaryRouteWithChildren,
@@ -778,23 +879,18 @@ const rootRouteChildren: RootRouteChildren = {
   ApiStreaksRoute: ApiStreaksRoute,
   ApiTaggedRoute: ApiTaggedRouteWithChildren,
   AuthConfirmedRoute: AuthConfirmedRoute,
+  AuthResetPasswordRoute: AuthResetPasswordRoute,
   ApiAuthConfirmFromSessionRoute: ApiAuthConfirmFromSessionRoute,
+  ApiAuthForgotPasswordRoute: ApiAuthForgotPasswordRoute,
   ApiAuthLoginRoute: ApiAuthLoginRoute,
   ApiAuthLogoutRoute: ApiAuthLogoutRoute,
+  ApiAuthMailHealthRoute: ApiAuthMailHealthRoute,
   ApiAuthRegisterRoute: ApiAuthRegisterRoute,
   ApiAuthResendConfirmationRoute: ApiAuthResendConfirmationRoute,
+  ApiAuthResetPasswordRoute: ApiAuthResetPasswordRoute,
   ApiAuthSessionRoute: ApiAuthSessionRoute,
   ApiAuthSyncRoute: ApiAuthSyncRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

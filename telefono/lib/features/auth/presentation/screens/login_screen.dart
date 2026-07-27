@@ -20,7 +20,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
-  bool _isSendingReset = false;
   bool _isResendingConfirmation = false;
   bool _needsConfirmation = false;
 
@@ -163,33 +162,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _sendPasswordReset() async {
-    final email = _emailController.text.trim().toLowerCase();
-    if (email.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Ingresa tu correo para enviar el enlace de restablecimiento.'), backgroundColor: AppTheme.error),
-        );
-      }
-      return;
-    }
-
-    setState(() => _isSendingReset = true);
-    try {
-      await ref.read(authRepositoryProvider).sendPasswordResetEmail(email: email);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Correo de restablecimiento enviado. Revisa tu bandeja.'), backgroundColor: AppTheme.olive),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('No se pudo enviar el correo: $e'), backgroundColor: AppTheme.error),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isSendingReset = false);
-    }
+    context.push('/forgot-password');
   }
 
   @override
@@ -274,8 +247,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ],
                         const SizedBox(height: 8),
                         TextButton(
-                          onPressed: _isSendingReset ? null : _sendPasswordReset,
-                          child: _isSendingReset ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('¿Olvidaste tu contraseña?'),
+                          onPressed: _sendPasswordReset,
+                          child: const Text('¿Olvidaste tu contraseña?'),
                         ),
                         const SizedBox(height: 16),
                         TextButton(

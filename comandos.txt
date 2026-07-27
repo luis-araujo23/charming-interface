@@ -18,41 +18,8 @@ cd telefono
 flutter pub get (de ser necesario)
 flutter run
 
-EN telefono contra Vercel (produccion)
-
-flutter run --dart-define=API_BASE_URL=https://TU-PROYECTO.vercel.app
-flutter build apk --dart-define=API_BASE_URL=https://TU-PROYECTO.vercel.app
-
-================================================================================
-CHECKLIST DEPLOY VERCEL (web)
-================================================================================
-1. En Vercel: Import repo → Root Directory = web
-2. Variables de entorno (Production + Preview):
-   - AUTH_SESSION_SECRET   (min 32 chars aleatorios)
-   - APP_URL               = https://tu-proyecto.vercel.app
-   - SUPABASE_URL
-   - SUPABASE_SERVICE_ROLE_KEY
-   - SUPABASE_ANON_KEY
-   - SUPABASE_STORAGE_BUCKET = diary-photos
-   - SMTP_HOST=smtp.gmail.com
-   - SMTP_PORT=465
-   - SMTP_USER=tu@gmail.com
-   - SMTP_PASS=contraseña_de_aplicacion_google (16 chars)
-   - EMAIL_FROM=Kitty <tu@gmail.com>
-3. Correo YA (cualquier destinatario) con Gmail SMTP:
-   - Google → Seguridad → verificacion en 2 pasos ON
-   - Contraseñas de aplicaciones → Mail → copiar la de 16 letras
-   - Pegar en Vercel SMTP_* y Redeploy
-   - Esto SI envia a cualquier Gmail/Outlook/etc (limite ~500/dia)
-   - Mas adelante: dominio propio + Resend para escala mundial
-4. En Supabase → Authentication → Providers → Email:
-   - Confirm email = ON
-5. En Supabase → Authentication → URL Configuration:
-   - Site URL = https://tu-proyecto.vercel.app
-   - Redirect URLs = https://tu-proyecto.vercel.app/auth/confirmed
-6. En Supabase SQL Editor: ejecutar sql/2026-07-16_email_confirmation.sql
-   (si aun no lo corriste)
-7. Redeploy en Vercel tras guardar variables
-8. Probar: registro → correo de Resend → /auth/confirmed → login
-9. Telefono: flutter con --dart-define=API_BASE_URL=https://tu-proyecto.vercel.app
-================================================================================
+Recuperar contrase�a (web + tel�fono):
+- Supabase ? Authentication ? URL Configuration ? Redirect URLs:
+  https://kitty-azure-one.vercel.app/auth/reset-password
+- Web: /forgot-password ? correo ? /auth/reset-password
+- Tel�fono: flutter run --dart-define=API_BASE_URL=https://kitty-azure-one.vercel.app
