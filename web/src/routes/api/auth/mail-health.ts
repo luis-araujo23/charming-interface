@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import nodemailer from "nodemailer";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { sendSignupConfirmationEmail } from "@/lib/supabase-auth";
 
 function strip(value: string | undefined) {
   const trimmed = value?.trim() ?? "";
@@ -49,6 +50,10 @@ export const Route = createFileRoute("/api/auth/mail-health")({
         let resendId: string | null = null;
         let generateLink: "skipped" | "ok" | "fail" = "skipped";
         let generateLinkError: string | null = null;
+        let confirmPath: "skipped" | "ok" | "fail" | "no_unverified_user" = "skipped";
+        let confirmPathError: string | null = null;
+        let confirmPathTo: string | null = null;
+        let confirmPathProvider: string | null = null;
 
         if ((probe || sendSelf) && smtpLooksOk) {
           try {
@@ -166,6 +171,39 @@ export const Route = createFileRoute("/api/auth/mail-health")({
                 }
               }
             }
+
+            // Full app path: generateLink + SMTP/Resend to a real unverified account.
+            const { data: pending, error: pendingError } = await admin
+              .from("users")
+              .select("email")
+              .eq("email_confirmed", false)
+              .order("id", { ascending: true })
+              .limit(1)
+              .maybeSingle();
+
+            if (pendingError) {
+              confirmPath = "fail";
+              confirmPathError = pendingError.message;
+            } else if (!pending?.email) {
+              confirmPath = "no_unverified_user";
+              confirmPathError =
+                "No hay cuentas con email_confirmed=false. Regístrate de nuevo o el correo ya está verificado.";
+            } else {
+              confirmPathTo = String(pending.email)
+                .replace(/(.{2}).+(@.+)/, "$1***$2")
+                .toLowerCase();
+              try {
+                const sent = await sendSignupConfirmationEmail({
+                  email: pending.email,
+                  emailRedirectTo: redirectTo,
+                });
+                confirmPath = "ok";
+                confirmPathProvider = sent.provider;
+              } catch (e) {
+                confirmPath = "fail";
+                confirmPathError = e instanceof Error ? e.message : String(e);
+              }
+            }
           } catch (e) {
             generateLink = "fail";
             generateLinkError = e instanceof Error ? e.message : String(e);
@@ -204,12 +242,24 @@ export const Route = createFileRoute("/api/auth/mail-health")({
             status: generateLink,
             error: generateLinkError,
           },
+          confirmPath: {
+            status: confirmPath,
+            error: confirmPathError,
+            toMasked: confirmPathTo,
+            provider: confirmPathProvider,
+          },
+          supabaseChecklist: {
+            siteUrl: "https://kitty-azure-one.vercel.app",
+            redirectUrl: "https://kitty-azure-one.vercel.app/auth/confirmed",
+            note:
+              "Supabase NO envía el correo (lo hace Gmail SMTP). Site URL + Redirect URLs solo afectan al hacer clic en el enlace. El SMTP de Supabase puede quedarse vacío.",
+          },
           appUrlIsHttps: appUrl.startsWith("https://"),
           appUrlLooksLocal:
             /localhost|127\.0\.0\.1|192\.168\./i.test(appUrl) || appUrl.length === 0,
-          commitHint: "mail-health-v3-sendself",
+          commitHint: "mail-health-v4-confirm-path",
           note: sendSelf
-            ? "Revisa la bandeja de kitty.diaryapp@gmail.com (SMTP_USER), no tu correo personal."
+            ? "1) Revisa kitty.diaryapp@gmail.com (self-test). 2) Revisa también el correo enmascarado de confirmPath (usuario sin verificar)."
             : undefined,
         };
 
