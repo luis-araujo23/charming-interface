@@ -51,7 +51,7 @@ export const Route = createFileRoute("/api/auth/register")({
           const supabase = getSupabaseAdmin();
 
           // Pre-check: clearer message than a raw unique violation.
-          const [{ data: byEmail }, { data: byUsername }] = await Promise.all([
+          const [emailResult, usernameResult] = await Promise.all([
             supabase
               .from("users")
               .select("id, email, username, email_confirmed")
@@ -68,19 +68,32 @@ export const Route = createFileRoute("/api/auth/register")({
               .maybeSingle(),
           ]);
 
-          const unconfirmedPayload = async () => {
+          if (emailResult.error) throw emailResult.error;
+          if (usernameResult.error) throw usernameResult.error;
+
+          const byEmail = emailResult.data;
+          const byUsername = usernameResult.data;
+
+          const unconfirmedPayload = async (targetEmail: string) => {
             try {
               const sent = await sendSignupConfirmationEmail({
-                email,
+                email: targetEmail,
                 password,
                 emailRedirectTo,
               });
+              // Also restore password hash on retry (hooks may have wiped it).
+              const passwordHashRetry = await hash(password, 12);
+              await supabase
+                .from("users")
+                .update({ password_hash: passwordHashRetry })
+                .ilike("email", targetEmail);
+
               return {
                 message: sent.emailSent
                   ? "Tu cuenta ya está creada, pero el correo aún no está verificado. Revisa tu bandeja (y spam) o reenvía el correo desde Iniciar sesión."
                   : "Tu cuenta ya está creada, pero no pudimos enviar el correo. En Iniciar sesión usa «Reenviar correo de verificación».",
                 code: "EMAIL_NOT_CONFIRMED" as const,
-                email,
+                email: targetEmail,
                 needsEmailConfirmation: true,
                 emailSent: sent.emailSent,
                 mailProvider: sent.provider,
@@ -90,33 +103,32 @@ export const Route = createFileRoute("/api/auth/register")({
                 message:
                   "Tu cuenta ya está creada, pero aún no está verificada. En Iniciar sesión usa «Reenviar correo de verificación».",
                 code: "EMAIL_NOT_CONFIRMED" as const,
-                email,
+                email: targetEmail,
                 needsEmailConfirmation: true,
               };
             }
           };
 
-          // Same person retrying register after a successful create (common when
-          // the confirmation email was slow / buried in spam).
-          if (
+          const sameUnconfirmedAccount =
             byUsername &&
+            typeof byUsername.email === "string" &&
+            byUsername.email.toLowerCase() === email &&
+            byUsername.email_confirmed === false;
+
+          // Same person retrying register after a successful create.
+          if (sameUnconfirmedAccount) {
+            return Response.json(await unconfirmedPayload(email), { status: 409 });
+          }
+
+          if (
             byEmail &&
-            byUsername.id === byEmail.id &&
-            byEmail.email_confirmed === false
+            byEmail.email_confirmed === false &&
+            (!byUsername || byUsername.id === byEmail.id)
           ) {
-            return Response.json(await unconfirmedPayload(), { status: 409 });
+            return Response.json(await unconfirmedPayload(email), { status: 409 });
           }
 
           if (byUsername) {
-            // Username taken by this same email (partial match race) or another account.
-            if (
-              byUsername.email_confirmed === false &&
-              typeof byUsername.email === "string" &&
-              byUsername.email.toLowerCase() === email
-            ) {
-              return Response.json(await unconfirmedPayload(), { status: 409 });
-            }
-
             return Response.json(
               {
                 message: `El nombre de usuario «${username}» ya está en uso. Elige otro.`,
@@ -127,10 +139,6 @@ export const Route = createFileRoute("/api/auth/register")({
           }
 
           if (byEmail) {
-            if (byEmail.email_confirmed === false) {
-              return Response.json(await unconfirmedPayload(), { status: 409 });
-            }
-
             return Response.json(
               {
                 message: "Ese correo ya está registrado. Inicia sesión o recupera tu contraseña.",
