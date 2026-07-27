@@ -17,9 +17,5 @@ flutter devices
 cd telefono
 flutter pub get (de ser necesario)
 flutter run
+flutter run --dart-define=API_BASE_URL=https://kitty-azure-one.vercel.app
 
-Recuperar contraseña (web + teléfono):
-- Supabase ? Authentication ? URL Configuration ? Redirect URLs:
-  https://kitty-azure-one.vercel.app/auth/reset-password
-- Web: /forgot-password ? correo ? /auth/reset-password
-- Teléfono: flutter run --dart-define=API_BASE_URL=https://kitty-azure-one.vercel.app
