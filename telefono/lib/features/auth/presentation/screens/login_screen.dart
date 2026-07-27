@@ -8,6 +8,7 @@ import 'package:telefono/features/auth/data/repositories/auth_repository.dart';
 import 'package:telefono/features/diary/data/repositories/diary_repository.dart';
 import 'package:telefono/features/friends/data/friends_providers.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -23,6 +24,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _isSendingReset = false;
   bool _isResendingConfirmation = false;
   bool _needsConfirmation = false;
+  String? _confirmLink;
 
   String _mapLoginError(Object error) {
     if (error is EmailNotConfirmedException) {
@@ -141,9 +143,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             password: password,
           );
       if (mounted) {
-        if (result.alreadyConfirmed) {
-          setState(() => _needsConfirmation = false);
-        }
+        setState(() {
+          if (result.alreadyConfirmed) {
+            _needsConfirmation = false;
+            _confirmLink = null;
+          } else {
+            _confirmLink = result.confirmLink;
+          }
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(result.message), backgroundColor: AppTheme.olive),
         );
@@ -159,6 +166,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
     } finally {
       if (mounted) setState(() => _isResendingConfirmation = false);
+    }
+  }
+
+  Future<void> _openConfirmLink() async {
+    final link = _confirmLink;
+    if (link == null || link.isEmpty) return;
+    final uri = Uri.tryParse(link);
+    if (uri == null) return;
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo abrir el enlace.'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
     }
   }
 
@@ -269,8 +292,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                     width: 18,
                                     child: CircularProgressIndicator(strokeWidth: 2),
                                   )
-                                : const Text('Reenviar correo de verificación'),
+                                : const Text('Obtener enlace de verificación'),
                           ),
+                          if (_confirmLink != null) ...[
+                            const SizedBox(height: 8),
+                            ElevatedButton(
+                              onPressed: _openConfirmLink,
+                              child: const Text('Verificar ahora'),
+                            ),
+                          ],
                         ],
                         const SizedBox(height: 8),
                         TextButton(

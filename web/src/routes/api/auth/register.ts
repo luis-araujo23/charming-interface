@@ -68,6 +68,34 @@ export const Route = createFileRoute("/api/auth/register")({
               .maybeSingle(),
           ]);
 
+          const unconfirmedPayload = async () => {
+            try {
+              const sent = await sendSignupConfirmationEmail({
+                email,
+                password,
+                emailRedirectTo,
+              });
+              return {
+                message:
+                  "Tu cuenta ya está creada. Usa Verificar ahora (el correo a veces no llega a Gmail).",
+                code: "EMAIL_NOT_CONFIRMED" as const,
+                email,
+                needsEmailConfirmation: true,
+                emailSent: sent.emailSent,
+                confirmLink: sent.confirmLink,
+                mailProvider: sent.provider,
+              };
+            } catch {
+              return {
+                message:
+                  "Tu cuenta ya está creada, pero aún no está verificada. En Iniciar sesión usa «Obtener enlace de verificación».",
+                code: "EMAIL_NOT_CONFIRMED" as const,
+                email,
+                needsEmailConfirmation: true,
+              };
+            }
+          };
+
           // Same person retrying register after a successful create (common when
           // the confirmation email was slow / buried in spam).
           if (
@@ -76,15 +104,7 @@ export const Route = createFileRoute("/api/auth/register")({
             byUsername.id === byEmail.id &&
             byEmail.email_confirmed === false
           ) {
-            return Response.json(
-              {
-                message:
-                  "Tu cuenta ya está creada, pero el correo aún no está verificado. Ve a Iniciar sesión y usa «Reenviar correo de verificación».",
-                code: "EMAIL_NOT_CONFIRMED",
-                email,
-              },
-              { status: 409 },
-            );
+            return Response.json(await unconfirmedPayload(), { status: 409 });
           }
 
           if (byUsername) {
@@ -94,15 +114,7 @@ export const Route = createFileRoute("/api/auth/register")({
               typeof byUsername.email === "string" &&
               byUsername.email.toLowerCase() === email
             ) {
-              return Response.json(
-                {
-                  message:
-                    "Tu cuenta ya está creada, pero el correo aún no está verificado. Ve a Iniciar sesión y usa «Reenviar correo de verificación».",
-                  code: "EMAIL_NOT_CONFIRMED",
-                  email,
-                },
-                { status: 409 },
-              );
+              return Response.json(await unconfirmedPayload(), { status: 409 });
             }
 
             return Response.json(
@@ -116,15 +128,7 @@ export const Route = createFileRoute("/api/auth/register")({
 
           if (byEmail) {
             if (byEmail.email_confirmed === false) {
-              return Response.json(
-                {
-                  message:
-                    "Ese correo ya está registrado pero aún no está verificado. Revisa tu bandeja o reenvía el correo de confirmación desde Iniciar sesión.",
-                  code: "EMAIL_NOT_CONFIRMED",
-                  email,
-                },
-                { status: 409 },
-              );
+              return Response.json(await unconfirmedPayload(), { status: 409 });
             }
 
             return Response.json(
@@ -186,12 +190,14 @@ export const Route = createFileRoute("/api/auth/register")({
             await linkPublicUserAuthId(supabase, email, authUserId);
           }
 
-          // 3) Send confirmation email (best-effort). Rate-limit must NOT undo the account.
-          let emailSent = true;
+          // 3) Build confirm link + best-effort email. Always return confirmLink
+          // so verification works even when Gmail never delivers the message.
+          let emailSent = false;
           let emailRateLimited = false;
           let mailProvider: string | null = null;
+          let confirmLink: string | null = null;
           let message =
-            "Cuenta creada. Te enviamos un correo para verificar tu cuenta. Confírmalo antes de iniciar sesión.";
+            "Cuenta creada. Usa el botón Verificar ahora (el correo a veces no llega a Gmail).";
 
           try {
             const sent = await sendSignupConfirmationEmail({
@@ -199,25 +205,27 @@ export const Route = createFileRoute("/api/auth/register")({
               password,
               emailRedirectTo,
             });
+            confirmLink = sent.confirmLink;
+            emailSent = sent.emailSent;
             mailProvider = sent.provider;
-            console.info("Register email sent via", sent);
+            console.info("Register confirmation prepared", {
+              emailSent: sent.emailSent,
+              provider: sent.provider,
+              sendErrors: sent.sendErrors,
+            });
+            if (!sent.emailSent && sent.sendErrors.some(isEmailSendRateLimitError)) {
+              emailRateLimited = true;
+            }
           } catch (sendError) {
             if (isEmailSendRateLimitError(sendError)) {
-              emailSent = false;
               emailRateLimited = true;
               message =
-                "Cuenta creada, pero se limitó el envío de correos. Espera unos minutos y en Iniciar sesión usa «Reenviar correo de verificación».";
+                "Cuenta creada, pero se limitó el envío. En Iniciar sesión usa «Reenviar» para obtener el enlace.";
             } else {
-              emailSent = false;
-              const detail =
+              message =
                 sendError instanceof Error && sendError.message
-                  ? sendError.message
-                  : "error desconocido";
-              message = detail.includes("RESEND_API_KEY")
-                ? "Cuenta creada, pero falta RESEND_API_KEY en Vercel. Añádela en Environment Variables, haz Redeploy y usa «Reenviar correo» en Iniciar sesión."
-                : detail.toLowerCase().includes("resend")
-                  ? `Cuenta creada, pero Resend rechazó el envío: ${detail}`
-                  : `Cuenta creada, pero no pudimos enviar el correo: ${detail}`;
+                  ? `Cuenta creada, pero no pudimos preparar la verificación: ${sendError.message}`
+                  : "Cuenta creada, pero no pudimos preparar la verificación.";
               console.error("Register email send error", sendError);
             }
           }
@@ -229,6 +237,7 @@ export const Route = createFileRoute("/api/auth/register")({
               emailSent,
               emailRateLimited,
               mailProvider,
+              confirmLink,
               email,
               user: {
                 id: createdUser.id,

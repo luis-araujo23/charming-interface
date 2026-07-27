@@ -177,7 +177,13 @@ class SupabaseAuthRepository {
 
   /// Result of a successful signup. [needsEmailConfirmation] is true when the
   /// user must verify email before logging in (normal path).
-  Future<({bool needsEmailConfirmation, String email, bool emailSent, String? message})> signUp({
+  Future<({
+    bool needsEmailConfirmation,
+    String email,
+    bool emailSent,
+    String? message,
+    String? confirmLink,
+  })> signUp({
     required String email,
     required String password,
     required String username,
@@ -211,6 +217,9 @@ class SupabaseAuthRepository {
           email: (decoded?['email'] as String?) ?? normalizedEmail,
           emailSent: decoded?['emailSent'] != false,
           message: decoded?['message'] is String ? decoded!['message'] as String : null,
+          confirmLink: decoded?['confirmLink'] is String
+              ? decoded!['confirmLink'] as String
+              : null,
         );
       }
 
@@ -241,7 +250,7 @@ class SupabaseAuthRepository {
     }
   }
 
-  Future<({bool alreadyConfirmed, String message})> resendConfirmationEmail({
+  Future<({bool alreadyConfirmed, String message, String? confirmLink})> resendConfirmationEmail({
     required String email,
     required String password,
   }) async {
@@ -268,7 +277,10 @@ class SupabaseAuthRepository {
       return (
         alreadyConfirmed: decoded?['alreadyConfirmed'] == true,
         message: (decoded?['message'] as String?) ??
-            'Te reenviamos el correo de verificación.',
+            'Listo. Si el correo no llega, usa Verificar ahora.',
+        confirmLink: decoded?['confirmLink'] is String
+            ? decoded!['confirmLink'] as String
+            : null,
       );
     }
 

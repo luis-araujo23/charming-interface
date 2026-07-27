@@ -448,16 +448,19 @@ async function sendConfirmationEmailWithSmtp(params: {
   };
 }
 
-export type MailSendResult =
-  | { provider: "smtp"; messageId: string | null }
-  | { provider: "resend"; id: string | null };
+export type MailSendResult = {
+  /** Always returned so the client can verify even if Gmail/Resend never lands. */
+  confirmLink: string;
+  emailSent: boolean;
+  provider: "smtp" | "resend" | "both" | "none";
+  sendErrors: string[];
+};
 
 /**
- * Sends signup confirmation to ANY email address.
+ * Builds the confirmation link and tries to email it (SMTP + Resend, best-effort).
  *
- * Prefer Gmail SMTP first (works for any recipient worldwide).
- * Resend is fallback only — without a verified domain it often cannot
- * deliver to arbitrary Gmail addresses even when the API key is valid.
+ * IMPORTANT: always returns `confirmLink`. Free Gmail→Gmail delivery is unreliable,
+ * so the UI must show this link as the primary verification path.
  */
 export async function sendSignupConfirmationEmail(params: {
   email: string;
@@ -465,46 +468,49 @@ export async function sendSignupConfirmationEmail(params: {
   /** Helps generateLink(type=signup) when available (register / resend). */
   password?: string;
 }): Promise<MailSendResult> {
-  const actionLink = await buildEmailConfirmationLink({
+  const confirmLink = await buildEmailConfirmationLink({
     email: params.email,
     password: params.password,
     emailRedirectTo: params.emailRedirectTo,
   });
 
-  const errors: string[] = [];
+  const sendErrors: string[] = [];
+  let smtpOk = false;
+  let resendOk = false;
 
-  // 1) SMTP Gmail first — verified working on this Vercel project.
-  try {
-    const smtp = getSmtpConfig();
-    if (smtp) {
-      return await sendConfirmationEmailWithSmtp({
-        email: params.email,
-        actionLink,
-      });
-    }
-  } catch (e) {
-    errors.push(e instanceof Error ? e.message : String(e));
-  }
-
-  // 2) Resend HTTP fallback.
+  // Try both free providers — one of them may land in the inbox.
   const resendKey = getValidResendApiKey();
   if (resendKey) {
     try {
-      return await sendConfirmationEmailWithResend({
+      await sendConfirmationEmailWithResend({
         email: params.email,
-        actionLink,
+        actionLink: confirmLink,
         apiKey: resendKey,
       });
+      resendOk = true;
     } catch (e) {
-      errors.push(e instanceof Error ? e.message : String(e));
+      sendErrors.push(e instanceof Error ? e.message : String(e));
     }
   }
 
-  throw new Error(
-    errors.length
-      ? `No se pudo enviar el correo. Detalles: ${errors.join(" | ")}`
-      : "No hay proveedor de correo configurado (SMTP o RESEND_API_KEY).",
-  );
+  try {
+    const smtp = getSmtpConfig();
+    if (smtp) {
+      await sendConfirmationEmailWithSmtp({
+        email: params.email,
+        actionLink: confirmLink,
+      });
+      smtpOk = true;
+    }
+  } catch (e) {
+    sendErrors.push(e instanceof Error ? e.message : String(e));
+  }
+
+  const emailSent = smtpOk || resendOk;
+  const provider: MailSendResult["provider"] =
+    smtpOk && resendOk ? "both" : smtpOk ? "smtp" : resendOk ? "resend" : "none";
+
+  return { confirmLink, emailSent, provider, sendErrors };
 }
 
 /** Optional helper if some callers need an anon client later. */

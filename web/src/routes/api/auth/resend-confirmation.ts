@@ -109,13 +109,21 @@ export const Route = createFileRoute("/api/auth/resend-confirmation")({
             password,
             emailRedirectTo: resolveEmailRedirectTo(request),
           });
-          console.info("Resend confirmation email via", sent);
+          console.info("Resend confirmation prepared", {
+            emailSent: sent.emailSent,
+            provider: sent.provider,
+            sendErrors: sent.sendErrors,
+          });
 
           return Response.json(
             {
-              message: "Te reenviamos el correo de verificación. Revisa tu bandeja (y spam).",
+              message: sent.emailSent
+                ? "Listo. Si el correo no llega, usa el botón Verificar ahora."
+                : "No pudimos entregar el correo, pero puedes verificar con el botón Verificar ahora.",
               email: user.email,
+              emailSent: sent.emailSent,
               mailProvider: sent.provider,
+              confirmLink: sent.confirmLink,
             },
             { status: 200 },
           );

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:telefono/core/theme/app_theme.dart';
 import 'package:telefono/core/widgets/paper_card.dart';
 import 'package:telefono/features/auth/data/repositories/auth_repository.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
@@ -19,6 +20,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   bool _isLoading = false;
   String? _pendingEmail;
   String? _pendingWarning;
+  String? _confirmLink;
 
   @override
   void dispose() {
@@ -90,6 +92,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         setState(() {
           _pendingEmail = result.email;
           _pendingWarning = result.emailSent ? null : result.message;
+          _confirmLink = result.confirmLink;
         });
         return;
       }
@@ -173,18 +176,40 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     );
   }
 
+  Future<void> _openConfirmLink() async {
+    final link = _confirmLink;
+    if (link == null || link.isEmpty) return;
+    final uri = Uri.tryParse(link);
+    if (uri == null) return;
+    final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo abrir el enlace. Copia la URL e intentalo en el navegador.'),
+          backgroundColor: AppTheme.error,
+        ),
+      );
+    }
+  }
+
   Widget _buildPendingConfirmation() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Revisa tu correo',
+          'Verifica tu cuenta',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 fontFamily: 'Fraunces',
               ),
         ),
         const SizedBox(height: 16),
+        Text(
+          'Cuenta creada para ${_pendingEmail!}. '
+          'Gmail a veces no muestra el correo: verifica con el boton de abajo.',
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+        ),
         if (_pendingWarning != null) ...[
+          const SizedBox(height: 12),
           Text(
             _pendingWarning!,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -192,25 +217,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   color: AppTheme.error,
                 ),
           ),
-          const SizedBox(height: 12),
-          Text(
-            'Tu cuenta (${_pendingEmail!}) ya esta creada. Cuando pase el limite, '
-            'en Iniciar sesion usa Reenviar correo de verificacion.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
-          ),
-        ] else ...[
-          Text(
-            'Te enviamos un enlace de verificacion a ${_pendingEmail!}. '
-            'Abrelo, confirma tu cuenta y luego inicia sesion.',
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Si no lo ves, revisa la carpeta de spam.',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.olive),
-          ),
         ],
         const SizedBox(height: 28),
+        if (_confirmLink != null) ...[
+          ElevatedButton(
+            onPressed: _openConfirmLink,
+            child: const Text('Verificar ahora'),
+          ),
+          const SizedBox(height: 8),
+        ],
         ElevatedButton(
           onPressed: () => context.go('/login'),
           child: const Text('Ir a iniciar sesion'),
@@ -219,6 +234,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           onPressed: () => setState(() {
             _pendingEmail = null;
             _pendingWarning = null;
+            _confirmLink = null;
           }),
           child: const Text(
             'Volver al registro',
