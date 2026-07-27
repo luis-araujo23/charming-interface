@@ -171,7 +171,7 @@ export const Route = createFileRoute("/api/auth/register")({
               email_confirmed: false,
               auth_id: authUserId,
             })
-            .select("id, username, email, created_at, email_confirmed")
+            .select("id, username, email, created_at, email_confirmed, password_hash, auth_id")
             .single();
 
           if (createError) {
@@ -184,6 +184,17 @@ export const Route = createFileRoute("/api/auth/register")({
               }
             }
             throw createError;
+          }
+
+          // Some DB triggers/hooks clear password_hash after insert — re-assert it.
+          if (!createdUser.password_hash) {
+            const { error: hashRepairError } = await supabase
+              .from("users")
+              .update({ password_hash: passwordHash })
+              .eq("id", createdUser.id);
+            if (hashRepairError) {
+              console.error("Register password_hash repair failed", hashRepairError);
+            }
           }
 
           if (authUserId && !createdUser.auth_id) {
@@ -229,6 +240,12 @@ export const Route = createFileRoute("/api/auth/register")({
               console.error("Register email send error", sendError);
             }
           }
+
+          // generateLink / Auth hooks can wipe password_hash — restore before responding.
+          await supabase
+            .from("users")
+            .update({ password_hash: passwordHash })
+            .eq("id", createdUser.id);
 
           return Response.json(
             {

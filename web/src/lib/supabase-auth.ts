@@ -248,19 +248,8 @@ async function buildEmailConfirmationLink(params: {
   const email = params.email.trim().toLowerCase();
 
   // User already exists after register, so "signup" generateLink usually fails.
-  // Prefer magiclink; the landing page will mark Auth + public as confirmed.
-  if (params.password) {
-    const signup = await admin.auth.admin.generateLink({
-      type: "signup",
-      email,
-      password: params.password,
-      options: { redirectTo: params.emailRedirectTo },
-    });
-    if (!signup.error && signup.data.properties?.action_link) {
-      return signup.data.properties.action_link;
-    }
-  }
-
+  // Prefer magiclink only. generateLink(type=signup) can recreate/overwrite Auth
+  // users and fire DB hooks that wipe public.users.password_hash.
   const magic = await admin.auth.admin.generateLink({
     type: "magiclink",
     email,
