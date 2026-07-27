@@ -347,3 +347,27 @@ final currentUserProvider = Provider<User?>((ref) {
   ref.watch(authStateProvider);
   return ref.watch(authRepositoryProvider).currentUser;
 });
+
+/// Username público del usuario logueado (metadata Auth o tabla users).
+final myUsernameProvider = FutureProvider<String?>((ref) async {
+  final user = ref.watch(currentUserProvider);
+  if (user == null) return null;
+
+  final fromMeta = user.userMetadata?['username']?.toString().trim();
+  if (fromMeta != null && fromMeta.isNotEmpty) return fromMeta;
+
+  try {
+    final row = await ref
+        .watch(supabaseProvider)
+        .from('users')
+        .select('username')
+        .eq('auth_id', user.id)
+        .maybeSingle();
+    final username = row?['username']?.toString().trim();
+    if (username != null && username.isNotEmpty) return username;
+  } catch (_) {
+    // Fall through.
+  }
+
+  return null;
+});

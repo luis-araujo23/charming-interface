@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { DiaryBook } from "@/components/diary/DiaryBook";
+import { useCurrentUser } from "@/lib/current-user";
 
 export const Route = createFileRoute("/_app/diary")({
   validateSearch: (search: Record<string, unknown>) => {
@@ -147,6 +148,7 @@ function mapEntry(entry: DiaryApiEntry): DiaryEntryPreview {
 
 function DiaryPage() {
   const navigate = useNavigate();
+  const currentUser = useCurrentUser();
   const { date, entryId } = Route.useSearch();
   const [entries, setEntries] = useState<DiaryEntryPreview[]>([]);
   const [loading, setLoading] = useState(true);
@@ -405,8 +407,14 @@ function DiaryPage() {
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
-        title="Tu diario"
-        subtitle={date ? `Entradas del ${date}` : "Hoy es un buen día para escribir"}
+        title={currentUser?.username ? `Hola, ${currentUser.username}` : "Tu diario"}
+        subtitle={
+          date
+            ? `Entradas del ${date}`
+            : currentUser?.username
+              ? "Tu diario · hoy es un buen día para escribir"
+              : "Hoy es un buen día para escribir"
+        }
         action={
           <Dialog
             open={open}

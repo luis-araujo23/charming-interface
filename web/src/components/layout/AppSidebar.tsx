@@ -18,12 +18,14 @@ type AppSidebarProps = {
   hasFriendNotifications?: boolean;
   hasTaggedNotifications?: boolean;
   completedWeeklyStreaksCount?: number;
+  username?: string;
 };
 
 export function AppSidebar({
   hasFriendNotifications = false,
   hasTaggedNotifications = false,
   completedWeeklyStreaksCount = 0,
+  username,
 }: AppSidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -85,15 +87,22 @@ export function AppSidebar({
         })}
       </nav>
 
-      <button
-        type="button"
-        onClick={onLogout}
-        disabled={loggingOut}
-        className="mt-6 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-      >
-        <LogOut className="h-4 w-4" />
-        {loggingOut ? "Cerrando..." : "Cerrar sesión"}
-      </button>
+      <div className="mt-6 space-y-2 border-t border-border pt-4">
+        {username ? (
+          <p className="px-3 text-xs text-muted-foreground">
+            Sesión de <span className="font-medium text-foreground">@{username}</span>
+          </p>
+        ) : null}
+        <button
+          type="button"
+          onClick={onLogout}
+          disabled={loggingOut}
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+        >
+          <LogOut className="h-4 w-4" />
+          {loggingOut ? "Cerrando..." : "Cerrar sesión"}
+        </button>
+      </div>
     </aside>
   );
 }

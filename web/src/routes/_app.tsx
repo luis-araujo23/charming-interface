@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { AppSidebar } from "@/components/layout/AppSidebar";
 import { MobileNav } from "@/components/layout/MobileNav";
+import { CurrentUserProvider, type SessionUser } from "@/lib/current-user";
 import { getSeenIncomingFriendRequestIds } from "@/lib/friend-notifications";
 import { getSeenTaggedNoteIds } from "@/lib/tagged-notifications";
 
@@ -13,6 +14,7 @@ function AppLayout() {
   const navigate = useNavigate();
   const [authorized, setAuthorized] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [currentUser, setCurrentUser] = useState<SessionUser | null>(null);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
   const [pendingTaggedNotesCount, setPendingTaggedNotesCount] = useState(0);
   const [completedWeeklyStreaksCount, setCompletedWeeklyStreaksCount] = useState(0);
@@ -94,7 +96,18 @@ function AppLayout() {
           return;
         }
 
+        const data = (await response.json().catch(() => ({}))) as {
+          user?: { id?: unknown; username?: unknown; email?: unknown };
+        };
+
         if (active) {
+          const username =
+            typeof data.user?.username === "string" ? data.user.username.trim() : "";
+          const email = typeof data.user?.email === "string" ? data.user.email.trim() : "";
+          const id = data.user?.id != null ? String(data.user.id) : "";
+          setCurrentUser(
+            username && email && id ? { id, username, email } : null,
+          );
           setAuthorized(true);
           await refreshFriendsNotifications();
           await refreshTaggedNotifications();
@@ -161,20 +174,23 @@ function AppLayout() {
   }
 
   return (
-    <div className="flex min-h-screen">
-      <AppSidebar
-        hasFriendNotifications={pendingRequestsCount > 0}
-        hasTaggedNotifications={pendingTaggedNotesCount > 0}
-        completedWeeklyStreaksCount={completedWeeklyStreaksCount}
-      />
-      <main className="flex-1 px-5 pb-24 pt-6 md:px-10 md:pb-10 md:pt-8">
-        <Outlet />
-      </main>
-      <MobileNav
-        hasFriendNotifications={pendingRequestsCount > 0}
-        hasTaggedNotifications={pendingTaggedNotesCount > 0}
-        completedWeeklyStreaksCount={completedWeeklyStreaksCount}
-      />
-    </div>
+    <CurrentUserProvider user={currentUser}>
+      <div className="flex min-h-screen">
+        <AppSidebar
+          hasFriendNotifications={pendingRequestsCount > 0}
+          hasTaggedNotifications={pendingTaggedNotesCount > 0}
+          completedWeeklyStreaksCount={completedWeeklyStreaksCount}
+          username={currentUser?.username}
+        />
+        <main className="flex-1 px-5 pb-24 pt-6 md:px-10 md:pb-10 md:pt-8">
+          <Outlet />
+        </main>
+        <MobileNav
+          hasFriendNotifications={pendingRequestsCount > 0}
+          hasTaggedNotifications={pendingTaggedNotesCount > 0}
+          completedWeeklyStreaksCount={completedWeeklyStreaksCount}
+        />
+      </div>
+    </CurrentUserProvider>
   );
 }

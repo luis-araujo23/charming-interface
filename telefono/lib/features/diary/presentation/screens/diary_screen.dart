@@ -233,10 +233,35 @@ class _DiaryScreenState extends ConsumerState<DiaryScreen> {
   @override
   Widget build(BuildContext context) {
     final entriesAsync = ref.watch(diaryEntriesProvider);
+    final username = ref.watch(myUsernameProvider).maybeWhen(
+          data: (value) => value,
+          orElse: () => null,
+        );
 
     return Scaffold(
       appBar: AppBar(
-        title: _isSearching ? null : const Text('Kitty'),
+        title: _isSearching
+            ? null
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Kitty',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                  ),
+                  Text(
+                    username == null || username.isEmpty
+                        ? 'Tu diario'
+                        : 'Hola, $username',
+                    style: const TextStyle(
+                      fontFamily: 'Fraunces',
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
         actions: [
           if (!_isSearching)
             _buildStreakAction(),
